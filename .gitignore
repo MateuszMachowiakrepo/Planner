@@ -1,0 +1,8 @@
+# Prywatna konfiguracja (Firebase, e-mail) — szablon: app-config.example.js
+app-config.js
+
+# Ustawienia narzędzi AI
+.agents/
+.claude/
+.codex/
+skills-lock.json

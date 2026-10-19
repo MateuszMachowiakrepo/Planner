@@ -1,0 +1,110 @@
+/* ===== MOTYW CIEMNY ===== */
+/* Ta sama warstwa „papieru i turkusu" co w jasnym motywie, tylko nocą: ciepłe, przyciemnione
+   powierzchnie, rozjaśniony turkus i nocne zdjęcie w tle. Włączany przez html[data-theme="dark"]
+   (przełącznik w nagłówku, js/core/theme.js). Wczytywany jako ostatni arkusz. */
+
+html[data-theme="dark"] {
+    color-scheme: dark;
+
+    /* Kolejność jasności warstw jak w jasnym motywie: karta > tło karty > powierzchnia */
+    --card:         #2c2824;
+    --bg:           #24201d;
+    --surface:      #1c1917;
+    --surface-2:    #171513;
+    --ink:          #eee7dd;
+    --ink-mid:      #c6bbad;
+    --ink-muted:    #9b9083;
+    --border:       #39332d;
+    --border-mid:   #4b443c;
+
+    --primary:      #2b958b;
+    --primary-h:    #36ab9f;
+    --primary-l:    #1c3432;
+
+    --success:      #62b48c;
+    --success-l:    #1d2e25;
+    --warning:      #d6a843;
+    --warning-l:    #332a17;
+    --danger:       #f0558f;
+    --danger-h:     #ff7aab;
+    --danger-l:     #3a1b27;
+
+    --note-bg:      #342d1f;
+    --note-border:  #574a2d;
+
+    --shadow-xs:    0 1px 2px oklch(0 0 0 / 0.30);
+    --shadow-sm:    0 1px 3px oklch(0 0 0 / 0.32), 0 4px 14px oklch(0 0 0 / 0.22);
+    --shadow:       0 4px 16px oklch(0 0 0 / 0.38);
+    --shadow-md:    0 6px 22px oklch(0 0 0 / 0.42);
+    --shadow-overlay: 0 18px 48px oklch(0 0 0 / 0.55);
+
+    --nav-sky-pale:  #1b2a2e;
+    --nav-sky:       #1f3d45;
+    --nav-sky-deep:  #4aa3c6;
+    --nav-brown:     #c9a074;
+    --nav-brown-soft:#4a3b2c;
+    --nav-ink:       #eee7dd;
+    --nav-ink-soft:  #c6bbad;
+
+    --sky-soft:      oklch(0.66 0.13 235 / 0.18);
+
+    /* Kolory kategorii tabel — te same odcienie, rozjaśnione pod ciemne tło */
+    --rsc-koszty:      #e8668f;
+    --rsc-loty:        #74abdc;
+    --rsc-apartamenty: #5fbf8f;
+    --rsc-atrakcje:    #f0a246;
+    --rsc-restauracje: #cda47a;
+    --rsc-miejscowki:  #ad90da;
+}
+
+/* ── Tło: nocne zdjęcie ───────────────────────────────────────────────── */
+html[data-theme="dark"] body {
+    background:
+        linear-gradient(180deg, rgba(6, 8, 20, 0.40) 0%, rgba(6, 8, 20, 0.68) 100%),
+        url('../tlo2.jpg') center center / cover no-repeat fixed,
+        #0b0d1a;
+}
+@media (max-width: 900px) {
+    html[data-theme="dark"] body {
+        background:
+            linear-gradient(180deg, rgba(6, 8, 20, 0.40) 0%, rgba(6, 8, 20, 0.74) 100%),
+            url('../tlo2.jpg') center center / cover no-repeat,
+            #0b0d1a;
+    }
+}
+
+/* ── Półprzezroczyste „szkło", które w jasnym motywie było białe ─────── */
+html[data-theme="dark"] .dashboard-tile { background: color-mix(in srgb, var(--card) 72%, transparent); }
+html[data-theme="dark"] .list-panel { background: color-mix(in srgb, var(--card) 86%, transparent); }
+html[data-theme="dark"] .board-sticky-bar { background: color-mix(in srgb, var(--bg) 90%, transparent); }
+html[data-theme="dark"] .plan-node .pn-label { background: color-mix(in srgb, var(--card) 90%, transparent); }
+
+html[data-theme="dark"] .pcal-cell.out {
+    background: repeating-linear-gradient(135deg, #201d1a, #201d1a 7px, #1a1816 7px, #1a1816 14px);
+}
+html[data-theme="dark"] .plan-map-card .pmm-map,
+html[data-theme="dark"] .pg-map { background: var(--surface); }
+
+/* ── Przyciski i pola z notes-theme.css (tam !important) ─────────────── */
+html[data-theme="dark"] .btn-home,
+html[data-theme="dark"] .btn-logout,
+html[data-theme="dark"] .btn-theme { background: var(--card) !important; }
+
+/* ── Plan dnia: numery i pinezki na rozjaśnionych kolorach kategorii → ciemna cyfra ── */
+html[data-theme="dark"] .tdv-item-num,
+html[data-theme="dark"] .tdv-pin { color: #1a1614; }
+html[data-theme="dark"] .tdv-head-kicker { color: color-mix(in srgb, var(--day-color, var(--primary)) 55%, #fff); }
+
+/* ── Inspiracje: kolory platform czytelne na ciemnym tle ─────────────── */
+html[data-theme="dark"] .inspo-card[data-platform="youtube"]   { --inspo-accent: #ff6b5e; }
+html[data-theme="dark"] .inspo-card[data-platform="tiktok"]    { --inspo-accent: var(--ink); }
+html[data-theme="dark"] .inspo-card[data-platform="instagram"] { --inspo-accent: #e06bb0; }
+html[data-theme="dark"] .inspo-card[data-platform="facebook"]  { --inspo-accent: #6aa5f5; }
+
+/* ── Mapy: kafelki lekko przygaszone, żeby nie raziły nocą ───────────── */
+html[data-theme="dark"] .leaflet-tile-pane { filter: brightness(0.82) contrast(1.05) saturate(0.9); }
+html[data-theme="dark"] .leaflet-popup-content-wrapper,
+html[data-theme="dark"] .leaflet-popup-tip { background: var(--card); color: var(--ink); }
+html[data-theme="dark"] .leaflet-bar a { background: var(--card); color: var(--ink); border-color: var(--border); }
+html[data-theme="dark"] .leaflet-control-attribution { background: color-mix(in srgb, var(--card) 92%, transparent); color: var(--ink-mid); }
+html[data-theme="dark"] .leaflet-control-attribution a { color: var(--primary-h); }

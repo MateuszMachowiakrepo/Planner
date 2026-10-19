@@ -1,0 +1,530 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <title>Planner Podróży</title>
+    <link rel="manifest" href="manifest.webmanifest">
+    <meta name="theme-color" content="#0f6e6a">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-title" content="Planner">
+    <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/browser-image-compression@2.0.1/dist/browser-image-compression.js"></script>
+    <link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32.png">
+    
+    <link rel="stylesheet" href="css/styles.css?v=61">
+    <link rel="stylesheet" href="css/notes-theme.css?v=2">
+    <link rel="stylesheet" href="css/dark-theme.css?v=1">
+    <script src="js/core/theme.js?v=1"></script>
+</head>
+<body>
+
+    <div id="loading-overlay">Synchronizacja z chmurą...</div>
+
+    <div id="auth-overlay">
+        <div class="auth-card">
+            <h2 id="auth-title">Zaloguj się</h2>
+            <input type="email" id="auth-email" class="auth-input" placeholder="Adres e-mail" autocomplete="email">
+            <input type="password" id="auth-password" class="auth-input" placeholder="Hasło" autocomplete="current-password">
+            <button id="auth-primary-btn" class="auth-btn" onclick="handleAuth()">Zaloguj</button>
+            <p id="auth-switch-text">Nie masz konta? <span class="auth-toggle" onclick="toggleAuthMode()">Zarejestruj się</span></p>
+            <p id="auth-error" style="color: var(--danger); margin-top: 15px; font-weight: 500; font-size: 0.9rem; display: none;"></p>
+        </div>
+    </div>
+
+    <div class="container">
+        <header class="app-header">
+            <button id="btn-back-home" class="btn-home" style="display:none;" onclick="showMainTab('home')">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path>
+                    <polyline points="9 22 9 12 15 12 15 22"></polyline>
+                </svg>
+                <span>Menu Główne</span>
+            </button>
+            <div>
+                <h1>Planner <span class="accent">Podróży</span></h1>
+                <p id="user-welcome">Zaplanuj swoje wymarzone podróże</p>
+            </div>
+            <button id="btn-theme" class="btn-theme" type="button" aria-pressed="false" aria-label="Włącz ciemny motyw" title="Ciemny motyw" onclick="toggleTheme()">
+                <svg class="btn-theme-moon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path></svg>
+                <svg class="btn-theme-sun" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="4"></circle><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"></path></svg>
+            </button>
+            <button id="btn-logout" class="btn-logout" type="button" aria-label="Wyloguj się" onclick="logoutUser()">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><path d="M16 17l5-5-5-5"></path><path d="M21 12H9"></path></svg>
+            </button>
+        </header>
+
+        <div class="card">
+            <div id="home-tab" class="tab-content active">
+                <section id="home-today" class="home-today" aria-label="Plan na dziś" hidden></section>
+
+                <section class="home-hero">
+                    <div class="home-hero-text">
+                        <p class="home-hero-kicker">Dokąd dziś lecimy</p>
+                        <h2 class="home-hero-title">Twój planner podróży</h2>
+                        <button type="button" class="btn btn-secondary btn-sm home-install-btn" id="install-app-btn" hidden onclick="installApp()">
+                            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12"></path><path d="M7 10l5 5 5-5"></path><path d="M5 21h14"></path></svg>
+                            Zainstaluj aplikację
+                        </button>
+                    </div>
+                    <button type="button" class="home-hero-cta" onclick="showMainTab('add')">
+                        <span>Zaplanuj podróż</span>
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14"></path><path d="M13 5l7 7-7 7"></path></svg>
+                    </button>
+                </section>
+
+                <div class="home-tiles">
+                    <button type="button" class="home-tile tile-plans" onclick="showMainTab('list')">
+                        <span class="home-tile-media" aria-hidden="true"></span>
+                        <span class="home-tile-shade" aria-hidden="true"></span>
+                        <span class="home-tile-body">
+                            <span class="home-tile-kicker">Twoje wyprawy</span>
+                            <span class="home-tile-name">Plany</span>
+                            <span class="home-tile-desc">Zaplanowane podróże, dni, listy i budżet — wszystko w jednym miejscu.</span>
+                        </span>
+                        <span class="home-tile-arrow" aria-hidden="true">
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"></path><path d="M13 5l7 7-7 7"></path></svg>
+                        </span>
+                    </button>
+
+                    <button type="button" class="home-tile tile-tools" onclick="showMainTab('tools')">
+                        <span class="home-tile-media" aria-hidden="true"></span>
+                        <span class="home-tile-shade" aria-hidden="true"></span>
+                        <span class="home-tile-body">
+                            <span class="home-tile-kicker">Warsztat podróżnika</span>
+                            <span class="home-tile-name">Narzędzia</span>
+                            <span class="home-tile-desc">Research, loty Google, kalendarz i kalkulator walut.</span>
+                        </span>
+                        <span class="home-tile-arrow" aria-hidden="true">
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"></path><path d="M13 5l7 7-7 7"></path></svg>
+                        </span>
+                    </button>
+
+                    <button type="button" class="home-tile tile-archive" onclick="showMainTab('archive')">
+                        <span class="home-tile-media" aria-hidden="true"></span>
+                        <span class="home-tile-shade" aria-hidden="true"></span>
+                        <span class="home-tile-body">
+                            <span class="home-tile-kicker">Odwiedzone miejsca</span>
+                            <span class="home-tile-name">Archiwum</span>
+                            <span class="home-tile-desc">Podróże, które już się wydarzyły — wspomnienia i mapa świata.</span>
+                        </span>
+                        <span class="home-tile-arrow" aria-hidden="true">
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"></path><path d="M13 5l7 7-7 7"></path></svg>
+                        </span>
+                    </button>
+                </div>
+
+            </div>
+
+            <div id="tools-tab" class="tab-content">
+                <section class="tools-header">
+                    <p class="tools-kicker">Warsztat podróżnika</p>
+                    <h2 class="tools-title">Narzędzia</h2>
+                    <p class="tools-sub">Cztery narzędzia, które przydadzą się na etapie planowania.</p>
+                </section>
+
+                <div class="tools-hub">
+                    <article class="tools-card" data-tool="research" aria-labelledby="tool-research-name">
+                        <header class="tools-card-head">
+                            <span class="tools-card-icon" aria-hidden="true">
+                                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"></circle><path d="m21 21-4.3-4.3"></path></svg>
+                            </span>
+                            <div class="tools-card-titles">
+                                <h3 class="tools-card-name" id="tool-research-name">Research</h3>
+                                <p class="tools-card-tagline">Tablica z 6 tabelami: koszty stałe, loty, apartamenty, atrakcje, restauracje, miejscówki + suma.</p>
+                            </div>
+                            <span class="tools-card-status" data-status="setup">Aktywne</span>
+                        </header>
+                        <div class="tools-card-body">
+                            <p class="tools-card-note">Twórz osobne tablice dla różnych podróży. Zaznaczaj wiersze — sumują się per-kategoria oraz w porównaniu do budżetu.</p>
+                            <div class="tools-card-actions">
+                                <button type="button" class="btn btn-primary btn-sm" onclick="showMainTab('research')">Otwórz tablice</button>
+                            </div>
+                        </div>
+                    </article>
+
+                    <article class="tools-card" data-tool="flights" aria-labelledby="tool-flights-name">
+                        <header class="tools-card-head">
+                            <span class="tools-card-icon" aria-hidden="true">
+                                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.8 19.2 16 11l3.5-3.5C21 6 21.5 4 21 3c-1-.5-3 0-4.5 1.5L13 8 4.8 6.2c-.5-.1-.9.1-1.1.5l-.3.5c-.2.5-.1 1 .3 1.3L9 12l-2 3H4l-1 1 3 2 2 3 1-1v-3l3-2 3.5 5.3c.3.4.8.5 1.3.3l.5-.2c.4-.3.6-.7.5-1.2z"></path></svg>
+                            </span>
+                            <div class="tools-card-titles">
+                                <h3 class="tools-card-name" id="tool-flights-name">Loty Google</h3>
+                                <p class="tools-card-tagline">Wyszukiwarka Google Flights — otwiera się w nowej karcie.</p>
+                            </div>
+                            <span class="tools-card-status" data-status="draft">Wersja podstawowa</span>
+                        </header>
+                        <div class="tools-card-body">
+                            <p class="tools-card-note">Docelowo: pre-wypełnianie dat i celu z aktywnej podróży. Na razie prosty przycisk.</p>
+                            <div class="tools-card-actions">
+                                <button type="button" class="btn btn-primary btn-sm" onclick="window.open('https://www.google.com/travel/flights', '_blank', 'noopener,noreferrer')">Otwórz Google Flights</button>
+                            </div>
+                        </div>
+                    </article>
+
+                    <article class="tools-card" data-tool="calendar" aria-labelledby="tool-calendar-name">
+                        <header class="tools-card-head">
+                            <span class="tools-card-icon" aria-hidden="true">
+                                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="17" rx="2"></rect><path d="M16 2v4"></path><path d="M8 2v4"></path><path d="M3 10h18"></path></svg>
+                            </span>
+                            <div class="tools-card-titles">
+                                <h3 class="tools-card-name" id="tool-calendar-name">Kalendarz Google</h3>
+                                <p class="tools-card-tagline">Osadzony widget kalendarza — otwiera się na życzenie.</p>
+                            </div>
+                            <span class="tools-card-status" data-status="setup" id="tools-cal-status">Do konfiguracji</span>
+                        </header>
+                        <div class="tools-card-body">
+                            <p class="tools-card-note">Osadź publiczny kalendarz Google (ID lub pełny URL) i wracaj do niego jednym kliknięciem.</p>
+                            <div class="tools-card-actions">
+                                <button type="button" class="btn btn-primary btn-sm" id="tools-cal-toggle" onclick="openCalendarModal()">Przejdź do kalendarza</button>
+                            </div>
+                        </div>
+                    </article>
+
+                    <article class="tools-card" data-tool="fx" aria-labelledby="tool-fx-name">
+                        <header class="tools-card-head">
+                            <span class="tools-card-icon" aria-hidden="true">
+                                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h13l-3-3"></path><path d="M20 18H7l3 3"></path></svg>
+                            </span>
+                            <div class="tools-card-titles">
+                                <h3 class="tools-card-name" id="tool-fx-name">Kalkulator walut</h3>
+                                <p class="tools-card-tagline">Przelicz kwotę między dwiema walutami — kursy dzienne z Europejskiego Banku Centralnego.</p>
+                            </div>
+                            <span class="tools-card-status" data-status="draft" id="tools-fx-status">Gotowe</span>
+                        </header>
+                        <div class="tools-card-body">
+                            <p class="tools-card-note">Domyślnie EUR → PLN. Kurs pobierany z Frankfurter (dane ECB, aktualizacja raz dziennie).</p>
+                            <div id="tools-fx-panel" class="tools-fx-panel">
+                                <form class="tools-fx-form" onsubmit="event.preventDefault();">
+                                    <div class="tools-fx-row">
+                                        <label class="tools-fx-field">
+                                            <span class="tools-fx-label">Kwota</span>
+                                            <input type="number" step="0.01" min="0" id="tools-fx-amount" class="tools-input tools-fx-input" value="100" oninput="runFxConvert()">
+                                        </label>
+                                        <label class="tools-fx-field">
+                                            <span class="tools-fx-label">Z</span>
+                                            <select id="tools-fx-from" class="tools-input tools-fx-select" onchange="runFxConvert()"></select>
+                                        </label>
+                                        <button type="button" class="tools-fx-swap" onclick="swapFxCurrencies()" aria-label="Zamień waluty miejscami">⇄</button>
+                                        <label class="tools-fx-field">
+                                            <span class="tools-fx-label">Na</span>
+                                            <select id="tools-fx-to" class="tools-input tools-fx-select" onchange="runFxConvert()"></select>
+                                        </label>
+                                    </div>
+                                </form>
+                                <div class="tools-fx-result" id="tools-fx-result" aria-live="polite">
+                                    <span class="tools-fx-result-amount" id="tools-fx-result-amount">—</span>
+                                    <span class="tools-fx-result-meta" id="tools-fx-result-meta">Ładuję kurs…</span>
+                                </div>
+                            </div>
+                        </div>
+                    </article>
+                </div>
+            </div>
+
+            <div id="research-tab" class="tab-content">
+                <div id="research-hub" class="research-hub">
+                    <header class="research-hub-head">
+                        <div>
+                            <p class="research-kicker">Warsztat podróżnika</p>
+                            <h2 class="research-hub-title">Research</h2>
+                            <p class="research-hub-sub">Tablice do zbierania i porównywania kosztów podróży.</p>
+                        </div>
+                        <button type="button" class="btn btn-primary" onclick="createResearchBoard()">+ Nowa tablica</button>
+                    </header>
+                    <div id="research-hub-list" class="research-hub-list"></div>
+                </div>
+
+                <div id="research-board" class="research-board" hidden>
+                    <header class="research-board-head">
+                        <button type="button" class="btn btn-secondary btn-sm" onclick="closeResearchBoard()">Wróć do listy</button>
+                        <input type="text" id="research-board-title" class="research-board-title" placeholder="Tytuł tablicy…" oninput="updateResearchBoardField('name', this.value)">
+                        <div class="research-board-actions">
+                            <button type="button" class="btn btn-primary btn-sm" onclick="importCurrentResearchToTrip()">Utwórz podróż</button>
+                            <button type="button" class="btn btn-danger btn-sm" onclick="deleteCurrentResearchBoard()">Usuń</button>
+                        </div>
+                    </header>
+
+                    <div class="board-sticky-bar">
+                        <nav class="research-board-nav" role="tablist">
+                            <button type="button" class="research-board-navbtn" data-panel="tables" role="tab" onclick="setResearchBoardPanel('tables')">Tabele</button>
+                            <button type="button" class="research-board-navbtn" data-panel="map" role="tab" onclick="setResearchBoardPanel('map')">Mapa</button>
+                            <button type="button" class="research-board-navbtn" data-panel="plan" role="tab" onclick="setResearchBoardPanel('plan')">Plan</button>
+                            <button type="button" class="research-board-navbtn" data-panel="inspo" role="tab" onclick="setResearchBoardPanel('inspo')">Inspiracje</button>
+                            <button type="button" class="research-board-navbtn" data-panel="country" role="tab" onclick="setResearchBoardPanel('country')">O kraju</button>
+                        </nav>
+                        <div class="research-tables-toolbar" id="research-tables-toolbar">
+                            <section class="research-budget-row">
+                                <label class="research-budget-label" for="research-budget-input">Budżet</label>
+                                <input type="number" id="research-budget-input" class="research-budget-input" min="0" placeholder="0" oninput="updateResearchBoardField('budget', this.value)">
+                                <span class="research-budget-currency">zł</span>
+                            </section>
+                            <button type="button" class="btn btn-secondary btn-sm board-fx-btn" onclick="toggleFxPopover(this)">Kantor</button>
+                        </div>
+                    </div>
+
+                    <div class="research-board-panel" data-panel="tables">
+                        <div id="research-tables" class="research-tables"></div>
+
+                        <section class="research-summary" id="research-summary"></section>
+                    </div>
+
+                    <div class="research-board-panel" data-panel="map" hidden>
+                        <div class="research-map-tools">
+                            <span class="research-map-hint" id="research-map-hint">Kliknij „Dodaj", aby przypiąć wiersz z tabeli na mapie.</span>
+                            <button type="button" id="research-map-add-btn" class="tmm-add-btn" onclick="openResearchMapAddPicker()">＋ Dodaj</button>
+                        </div>
+                        <div id="research-map-container" class="research-map-container"></div>
+                    </div>
+
+                    <div class="research-board-panel" data-panel="plan" hidden>
+                        <div class="board-container" id="research-plan"></div>
+                    </div>
+
+                    <div class="research-board-panel" data-panel="inspo" hidden>
+                        <form class="inspo-form" onsubmit="event.preventDefault(); addResearchInspiration()">
+                            <label class="inspo-field">
+                                <span class="inspo-label">Nazwa</span>
+                                <input type="text" id="inspo-name" class="tools-input" placeholder="np. 10 miejsc w Lizbonie" autocomplete="off" required>
+                            </label>
+                            <label class="inspo-field">
+                                <span class="inspo-label">Czego dotyczy</span>
+                                <input type="text" id="inspo-topic" class="tools-input" placeholder="np. jedzenie, plaże, nocleg" list="inspo-topics" autocomplete="off">
+                                <datalist id="inspo-topics"></datalist>
+                            </label>
+                            <label class="inspo-field inspo-field-link">
+                                <span class="inspo-label">Link</span>
+                                <input type="text" id="inspo-link" class="tools-input" placeholder="https://youtube.com/…" autocomplete="off" required>
+                            </label>
+                            <button type="submit" class="btn btn-primary inspo-add-btn">Dodaj</button>
+                        </form>
+                        <div id="inspo-filters" class="inspo-filters"></div>
+                        <div id="inspo-list" class="inspo-list"></div>
+                    </div>
+
+                    <div class="research-board-panel" data-panel="country" hidden>
+                        <div id="research-country"></div>
+                    </div>
+                </div>
+            </div>
+
+            <div id="add-tab" class="tab-content">
+                <h2>Nowa podróż</h2>
+                <form id="trip-form">
+                    <div class="form-grid">
+                        <div class="form-group"><label>Nazwa podróży</label><input type="text" id="trip-name" required></div>
+                        <div class="form-group"><label>Cel podróży</label><input type="text" id="destination" required></div>
+                        <div class="form-group"><label>Data rozpoczęcia</label><input type="date" id="start-date" required></div>
+                        <div class="form-group"><label>Data zakończenia</label><input type="date" id="end-date" required></div>
+                        <div class="form-group"><label>Budżet (PLN)</label><input type="number" id="budget" min="0"></div>
+                        <div class="form-group"><label>Liczba osób</label><input type="number" id="travelers" value="1" min="1"></div>
+                        <div class="form-group">
+                            <label>Typ podróży</label>
+                            <select id="trip-type">
+                                <option value="Wypoczynek">Wypoczynek</option><option value="Zwiedzanie">Zwiedzanie</option>
+                                <option value="Przygoda">Przygoda</option><option value="Rozrywka">Rozrywka</option><option value="Long Trip">Long Trip</option>
+                                <option value="Citybreak">Citybreak</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label>Transport</label>
+                            <select id="transport">
+                                <option value="Samolot">Samolot</option><option value="Samochod">Samochód</option>
+                                <option value="Pociag">Pociąg</option><option value="Autobus">Autobus</option><option value="Inny">Inny</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="form-group" style="margin-top: 15px;">
+                        <label>Notatki ogólne</label>
+                        <textarea id="notes" rows="3"></textarea>
+                    </div>
+
+                    <button type="submit" class="btn btn-primary" style="margin-top: 25px; width: 100%; font-size: 1.1rem;">Zapisz podróż</button>
+                </form>
+            </div>
+
+            <div id="list-tab" class="tab-content">
+                <h2>Moje podróże</h2>
+                <div id="trips-container" class="trips-list"></div>
+            </div>
+
+            <div id="archive-tab" class="tab-content">
+                <h2>Archiwum podróży</h2>
+                <div id="archive-container" class="trips-list"></div>
+            </div>
+
+            <div id="stats-tab" class="tab-content">
+                <h2>Mapa</h2>
+
+                <div id="stats-map-view" class="stats-sub-view">
+                    <div class="stats-map-toolbar">
+                        <input type="text" id="map-search-input" class="map-search-input" placeholder="Szukaj punktu po nazwie…" oninput="applyMapSearch(this.value)">
+                        <button class="btn btn-secondary btn-sm" id="map-add-btn" onclick="toggleMapAddPanel()">Dodaj punkt</button>
+                        <button class="btn btn-secondary btn-sm" id="map-filter-btn" onclick="toggleMapFilterPanel()">Filtruj</button>
+                    </div>
+
+                    <div id="map-add-panel" class="map-add-panel">
+                        <div class="map-filter-label">Dodaj punkt do mapy ogólnej</div>
+                        <div id="map-add-categories" class="map-add-cats"></div>
+                        <p class="map-add-hint" id="map-add-hint">Kliknij na mapie, aby umieścić punkt.</p>
+                    </div>
+
+                    <div id="map-filter-panel" class="map-filter-panel">
+                        <div class="map-filter-group">
+                            <div class="map-filter-label">Kategoria</div>
+                            <div id="map-filter-categories" class="map-filter-pills"></div>
+                        </div>
+                        <div class="map-filter-group">
+                            <div class="map-filter-label">Podróż</div>
+                            <select id="map-filter-trip" class="map-filter-select" onchange="applyMapFilters()">
+                                <option value="">Wszystkie podróże</option>
+                            </select>
+                        </div>
+                        <div class="map-filter-group">
+                            <label class="map-filter-checkbox">
+                                <input type="checkbox" id="map-filter-manual-only" onchange="applyMapManualOnlyFilter(this.checked)">
+                                Pokaż punkty dodane
+                            </label>
+                        </div>
+                    </div>
+
+                    <div id="map-container"></div>
+                </div>
+            </div>
+
+            <div id="board-plan-tab" class="tab-content">
+                <header class="trip-board-header">
+                    <button class="btn btn-secondary btn-sm" onclick="showMainTab(originTab)">Wróć</button>
+                    <h2 id="plan-trip-title" class="trip-board-title">Plan Podróży</h2>
+                    <span class="trip-board-spacer"></span>
+                </header>
+                <div class="board-sticky-bar">
+                    <nav class="trip-board-nav" role="tablist">
+                        <button type="button" class="trip-board-navbtn" data-top="tables" role="tab" onclick="setTripTopPanel('tables')">Tabele</button>
+                        <button type="button" class="trip-board-navbtn" data-top="calendar" role="tab" onclick="setTripTopPanel('calendar')">Kalendarz</button>
+                        <button type="button" class="trip-board-navbtn" data-top="tickets" role="tab" onclick="setTripTopPanel('tickets')">Bilety</button>
+                        <button type="button" class="trip-board-navbtn" data-top="country" role="tab" onclick="setTripTopPanel('country')">O kraju</button>
+                    </nav>
+                    <div class="trip-tables-toolbar" id="trip-tables-toolbar">
+                        <section class="research-budget-row">
+                            <label class="research-budget-label" for="trip-budget-input">Budżet</label>
+                            <input type="number" id="trip-budget-input" class="research-budget-input" min="0" placeholder="0" oninput="updateTripBudget(this.value)">
+                            <span class="research-budget-currency">zł</span>
+                        </section>
+                        <div class="board-toolbar-actions">
+                            <button type="button" class="btn btn-secondary btn-sm board-fx-btn" onclick="toggleFxPopover(this)">Kantor</button>
+                            <button type="button" class="btn btn-secondary btn-sm trip-open-map-btn" onclick="openTripMapModal()">Mapa</button>
+                        </div>
+                    </div>
+                </div>
+                <section class="trip-board-panels">
+                    <div class="trip-board-panel" data-top="tables" hidden>
+                        <div class="trip-tables-view">
+                            <div id="trip-tables" class="research-tables"></div>
+                            <section class="research-summary" id="trip-tables-summary"></section>
+                        </div>
+                    </div>
+                    <div class="trip-board-panel" data-top="calendar" hidden>
+                        <div class="board-container" id="plan-board-container"></div>
+                    </div>
+                    <div class="trip-board-panel" data-top="tickets" hidden>
+                        <form class="inspo-form ticket-form" onsubmit="event.preventDefault(); addTripTicket()">
+                            <label class="inspo-field">
+                                <span class="inspo-label">Nazwa</span>
+                                <input type="text" id="ticket-name" class="tools-input" placeholder="np. Bilet do muzeum" autocomplete="off">
+                            </label>
+                            <label class="inspo-field">
+                                <span class="inspo-label">Rodzaj</span>
+                                <input type="text" id="ticket-kind" class="tools-input" placeholder="np. muzeum, atrakcja, pociąg" list="ticket-kinds" autocomplete="off">
+                                <datalist id="ticket-kinds"></datalist>
+                            </label>
+                            <label class="inspo-field inspo-field-link">
+                                <span class="inspo-label">Link</span>
+                                <input type="text" id="ticket-link" class="tools-input" placeholder="https://… (albo dodaj plik)" autocomplete="off">
+                            </label>
+                            <label class="inspo-field ticket-file-field">
+                                <span class="inspo-label">Plik</span>
+                                <span class="ticket-file-btn" id="ticket-file-label">Wybierz plik</span>
+                                <input type="file" id="ticket-file" accept="application/pdf,image/*,.pkpass" onchange="onTripTicketFileChange(this)">
+                            </label>
+                            <button type="submit" class="btn btn-primary inspo-add-btn" id="ticket-add-btn">Dodaj</button>
+                        </form>
+                        <div id="ticket-filters" class="inspo-filters"></div>
+                        <div id="ticket-list" class="inspo-list"></div>
+                    </div>
+                    <div class="trip-board-panel" data-top="country" hidden>
+                        <div id="trip-country"></div>
+                    </div>
+                </section>
+            </div>
+
+
+        </div> </div>
+
+    <script src="app-config.js?v=1"></script>
+    <script type="module" src="firebase-config.js?v=5"></script>
+    <script src="js/core/app-core.js?v=11"></script>
+    <script src="js/core/country-names.js?v=1"></script>
+    <script src="js/core/country-sheet.js?v=1"></script>
+    <script src="js/plan/point-categories.js?v=22"></script>
+    <script src="js/trips/trips.js?v=15"></script>
+    <script src="js/stats/stats.js?v=14"></script>
+    <script src="js/plan/maps-routing.js?v=20"></script>
+    <script src="js/plan/plan.js?v=25"></script>
+
+    <div id="tools-cal-modal" class="tools-cal-modal" hidden role="dialog" aria-modal="true" aria-labelledby="tools-cal-modal-title">
+        <div class="tools-cal-modal-backdrop" onclick="closeCalendarModal()"></div>
+        <div class="tools-cal-modal-dialog" role="document">
+            <header class="tools-cal-modal-head">
+                <h3 id="tools-cal-modal-title">Kalendarz Google</h3>
+                <button type="button" class="btn btn-secondary btn-sm" onclick="closeCalendarModal()" aria-label="Zamknij">Zamknij</button>
+            </header>
+            <form class="tools-inline-form" onsubmit="event.preventDefault(); saveCalendarSource(document.getElementById('tools-cal-input').value)">
+                <input type="text" id="tools-cal-input" class="tools-input" placeholder="ID kalendarza (np. adres@group.calendar.google.com) lub pełny URL embed" autocomplete="off">
+                <button type="submit" class="btn btn-primary btn-sm">Osadź</button>
+                <button type="button" class="btn btn-secondary btn-sm" onclick="clearCalendarSource()">Wyczyść</button>
+            </form>
+            <div id="tools-cal-embed" class="tools-embed" hidden></div>
+        </div>
+    </div>
+
+    <script src="js/nav/tools.js?v=6"></script>
+    <script src="js/nav/fx.js?v=3"></script>
+    <script src="js/research/research.js?v=14"></script>
+    <script src="js/trip/trip-tables.js?v=13"></script>
+    <script src="js/trip/trip-day.js?v=9"></script>
+    <script src="js/trip/today.js?v=3"></script>
+    <script src="js/trip/trip-tickets.js?v=1"></script>
+    <script>
+        // Aplikacja na telefon (PWA): service worker + przycisk instalacji.
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('sw.js').catch(e => console.warn('Service worker:', e));
+            });
+        }
+        let deferredInstallPrompt = null;
+        window.addEventListener('beforeinstallprompt', e => {
+            e.preventDefault();
+            deferredInstallPrompt = e;
+            const btn = document.getElementById('install-app-btn');
+            if (btn) btn.hidden = false;
+        });
+        window.addEventListener('appinstalled', () => {
+            deferredInstallPrompt = null;
+            const btn = document.getElementById('install-app-btn');
+            if (btn) btn.hidden = true;
+        });
+        window.installApp = async function () {
+            if (!deferredInstallPrompt) return;
+            deferredInstallPrompt.prompt();
+            await deferredInstallPrompt.userChoice;
+            deferredInstallPrompt = null;
+            document.getElementById('install-app-btn').hidden = true;
+        };
+    </script>
+</body>
+</html>
