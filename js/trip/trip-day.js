@@ -169,6 +169,43 @@
     rerender(day);
   };
 
+  // Nowa kolejność po przeciągnięciu kafelka. „Dojazd" zostaje tylko tam, gdzie następny punkt się nie zmienił.
+  window.reorderTripDayItems = function(day, orderedIds){
+    const t = getTrip(); if(!t) return;
+    const d = ensureDay(t, day);
+    const byId = new Map(d.items.map(it => [it.id, it]));
+    const nextBefore = new Map(d.items.map((it, i) => [it.id, d.items[i + 1] ? d.items[i + 1].id : null]));
+    const items = orderedIds.map(id => byId.get(id)).filter(Boolean);
+    d.items.forEach(it => { if(!items.includes(it)) items.push(it); });
+    if(items.every((it, i) => it === d.items[i])){ rerender(day); return; }
+    items.forEach((it, i) => {
+      const next = items[i + 1] ? items[i + 1].id : null;
+      if(nextBefore.get(it.id) !== next){ it.travelToNext = ''; it.travelMode = ''; }
+    });
+    d.items = items;
+    save();
+    rerender(day);
+  };
+
+  function routeProfileOf(t, day){
+    return RouteLines.profileKey(t && t.dayMeta && t.dayMeta[day] && t.dayMeta[day].routeMode);
+  }
+
+  window.setTripDayRouteMode = function(day, mode){
+    const t = getTrip(); if(!t) return;
+    if(!t.dayMeta || typeof t.dayMeta !== 'object') t.dayMeta = {};
+    if(!t.dayMeta[day]) t.dayMeta[day] = {};
+    t.dayMeta[day].routeMode = RouteLines.profileKey(mode);
+    save();
+    const root = document.getElementById(ctx.containerId);
+    if(root) root.querySelectorAll('.tdv-route-chip').forEach(b => {
+      const on = b.dataset.mode === t.dayMeta[day].routeMode;
+      b.classList.toggle('active', on);
+      b.setAttribute('aria-pressed', on);
+    });
+    buildTripDayMap(day);
+  };
+
   window.updateTripDayItemField = function(day, itemId, field, val){
     const t = getTrip(); if(!t) return;
     const d = ensureDay(t, day);
@@ -338,6 +375,7 @@
 
     let map = null;
     let routeLine = null;
+    const pickerProfile = routeProfileOf(t, day);
     const markers = {};
 
     const onKey = e => { if(e.key === 'Escape') close(); };
@@ -408,7 +446,7 @@
       if(map){
         if(routeLine){ routeLine.remove(); routeLine = null; }
         const pts = order.map(id => byId.get(id)).filter(c => c && c.coords).map(c => c.coords);
-        if(pts.length >= 2) routeLine = L.polyline(pts, { color: '#1e3a8a', weight: 3, opacity: 0.8, dashArray: '6,6' }).addTo(map);
+        if(pts.length >= 2) routeLine = RouteLines.draw(map, pts, { profile: pickerProfile });
       }
 
       const ol = bd.querySelector('.tdp-order');
@@ -523,12 +561,15 @@
 
     if(tdvMap){ tdvMap.remove(); tdvMap = null; tdvMarkers = []; }
     tdvMap = L.map(container).setView([20, 0], 2);
+    const map = tdvMap;
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '© OpenStreetMap contributors', maxZoom: 19 }).addTo(tdvMap);
 
     const coords = [];
+    const coordIdx = [];   // indeks punktu dnia dla każdej współrzędnej trasy
     d.items.forEach((it, idx) => {
       const point = findPoint(t, it.rowId);
       if(!point || !point.coords || point.coords.length !== 2) return;
+      coordIdx.push(idx);
       const info = findRow(t, it.rowId);
       const color = info ? (info.color || getComputedStyle(document.documentElement).getPropertyValue('--rsc-' + info.tableKey).trim()) : '#333';
       const html = `<div class="tdv-pin" style="background:${color};">${idx + 1}</div>`;
@@ -540,11 +581,49 @@
       coords.push(point.coords);
     });
 
+    // Noclegi (apartamenty/hotele) — zawsze widoczne jako punkt odniesienia, ale poza numeracją i trasą dnia.
+    const homeCoords = [];
+    (t.planPoints || t.points || []).forEach(p => {
+      if(p.categoryKey !== 'apartment' || !p.coords || p.coords.length !== 2) return;
+      const cat = typeof categoryByKey === 'function' ? categoryByKey(t, 'apartment') : null;
+      const color = (cat && cat.color) || '#2d8a5e';
+      const icon = typeof planMakeDot === 'function'
+        ? planMakeDot(color, 'apartment')
+        : L.divIcon({ html: `<div class="tdp-dot" style="background:${color};"></div>`, className: 'tdv-pin-wrap', iconSize: [18, 18], iconAnchor: [9, 9] });
+      const row = ((t.tables && t.tables.apartamenty) || []).find(r => r.id === p.id);
+      const name = (row && row.nazwa) || p.name || 'Nocleg';
+      L.marker(p.coords, { icon, zIndexOffset: 500 }).addTo(tdvMap).bindPopup(`<b>${escapeHtml(name)}</b><br>Nocleg`);
+      homeCoords.push(p.coords);
+    });
+    const viewCoords = coords.concat(homeCoords);
+
+    root.querySelectorAll('.tdv-travel-auto').forEach(el => { el.textContent = ''; el.hidden = true; });
+    root.querySelectorAll('.tdv-route-total').forEach(el => { el.textContent = ''; });
     if(coords.length >= 2){
-      L.polyline(coords, { color: '#1e3a8a', weight: 3.5, opacity: 0.9, dashArray: '6,6' }).addTo(tdvMap);
-      tdvMap.fitBounds(L.latLngBounds(coords), { padding: [30, 30] });
-    } else if(coords.length === 1){
-      tdvMap.setView(coords[0], 13);
+      RouteLines.draw(tdvMap, coords, { profile: routeProfileOf(t, day), onLegs: legs => {
+        if(tdvMap !== map) return;
+        root.querySelectorAll('.tdv-route-total').forEach(el => {
+          el.textContent = legs
+            ? `${RouteLines.fmtDistance(legs.reduce((s, l) => s + l.distance, 0))} · ${RouteLines.fmtDuration(legs.reduce((s, l) => s + l.duration, 0))}`
+            : 'Linia prosta — serwer tras nie odpowiada';
+        });
+        if(!legs) return;
+        // Szacunek odcinka trafia pod kafelek tylko, gdy oba punkty sąsiadują ze sobą w planie dnia.
+        legs.forEach((leg, k) => {
+          const from = coordIdx[k], to = coordIdx[k + 1];
+          if(to !== from + 1) return;
+          const it = d.items[from];
+          const el = it && root.querySelector(`.tdv-travel-auto[data-from="${CSS.escape(it.id)}"]`);
+          if(!el) return;
+          el.textContent = `≈ ${RouteLines.fmtDuration(leg.duration)} · ${RouteLines.fmtDistance(leg.distance)}`;
+          el.hidden = false;
+        });
+      } });
+    }
+    if(viewCoords.length >= 2){
+      tdvMap.fitBounds(L.latLngBounds(viewCoords), { padding: [30, 30] });
+    } else if(viewCoords.length === 1){
+      tdvMap.setView(viewCoords[0], 13);
     } else {
       const c = ctx.center(t);
       if(c) tdvMap.setView(c, 10);
@@ -561,11 +640,13 @@
     const travelHtml = isLast ? '' : `<div class="tdv-travel">
       <span class="tdv-travel-icon" aria-hidden="true">↓</span>
       <label class="tdv-travel-label">Dojazd:</label>
+      <span class="tdv-travel-auto" data-from="${escapeAttr(it.id)}" title="Szacunek wg trasy na mapie" hidden></span>
       <input type="text" class="tdv-travel-input tdv-travel-time" value="${escapeAttr(it.travelToNext || '')}" placeholder="np. 20 min" oninput="updateTripDayItemField(${day},'${it.id}','travelToNext',this.value)">
       <input type="text" class="tdv-travel-input tdv-travel-mode" value="${escapeAttr(it.travelMode || '')}" placeholder="jak? np. pieszo, metro M1, auto" oninput="updateTripDayItemField(${day},'${it.id}','travelMode',this.value)">
     </div>`;
 
-    return `<div class="tdv-item research-theme-${info.tableKey}" data-item="${escapeAttr(it.id)}">
+    return `<div class="tdv-slot" data-item="${escapeAttr(it.id)}"><div class="tdv-item research-theme-${info.tableKey}">
+      <button type="button" class="tdv-drag-handle" aria-label="Przeciągnij, aby zmienić kolejność (lub strzałki w górę/dół)" title="Przeciągnij, aby zmienić kolejność">⠿</button>
       <span class="tdv-item-num">${idx + 1}</span>
       <div class="tdv-item-body">
         <div class="tdv-item-name">${escapeHtml(name)}</div>
@@ -590,11 +671,9 @@
         </div>
       </div>
       <div class="tdv-item-actions">
-        <button type="button" class="tdv-item-btn" onclick="moveTripDayItemById(${day},'${it.id}','up')" ${idx === 0 ? 'disabled' : ''} aria-label="W górę">▲</button>
-        <button type="button" class="tdv-item-btn" onclick="moveTripDayItemById(${day},'${it.id}','down')" ${isLast ? 'disabled' : ''} aria-label="W dół">▼</button>
         <button type="button" class="tdv-item-btn tdv-item-del" onclick="removeTripDayItemById(${day},'${it.id}')" aria-label="Usuń">×</button>
       </div>
-    </div>${travelHtml}`;
+    </div>${travelHtml}</div>`;
   }
 
   function renderDayView(day){
@@ -619,11 +698,11 @@
       ? d.items.map((it, idx) => {
           const isLast = idx === d.items.length - 1;
           const info = findRow(t, it.rowId);
-          if(!info) return `<div class="tdv-item tdv-item-missing" data-item="${escapeAttr(it.id)}">
+          if(!info) return `<div class="tdv-slot" data-item="${escapeAttr(it.id)}"><div class="tdv-item tdv-item-missing">
             <span class="tdv-item-num">${idx + 1}</span>
             <span class="tdv-item-name">Punkt usunięty (kliknij Usuń)</span>
             <button type="button" class="tdv-item-btn tdv-item-del" onclick="removeTripDayItemById(${day},'${it.id}')">Usuń</button>
-          </div>`;
+          </div></div>`;
           const point = findPoint(t, it.rowId);
           return renderItemBlock(it, idx, day, info, point, isLast);
         }).join('')
@@ -650,6 +729,13 @@
           <textarea class="tdv-note" placeholder="Notatki dnia — pomysły, kolejność, godziny…" oninput="updateDayPlanMeta(${day},'desc',this.value)">${escapeHtml(meta.desc || '')}</textarea>
         </section>
         <section class="tdv-map-section">
+          <div class="tdv-route-bar">
+            <div class="tdv-route-switch" role="group" aria-label="Sposób poruszania się">${RouteLines.PROFILE_ORDER.map(k => {
+              const on = k === routeProfileOf(t, day);
+              return `<button type="button" class="tdv-route-chip${on ? ' active' : ''}" data-mode="${k}" aria-pressed="${on}" onclick="setTripDayRouteMode(${day},'${k}')"><span aria-hidden="true">${RouteLines.PROFILES[k].icon}</span> ${RouteLines.PROFILES[k].label}</button>`;
+            }).join('')}</div>
+            <span class="tdv-route-total" aria-live="polite"></span>
+          </div>
           <div class="tdv-map"></div>
         </section>
       </div>
@@ -659,7 +745,71 @@
       </div>
     </div>`;
 
+    bindDayDrag(container.querySelector('.tdv-items'), day);
     buildTripDayMap(day);
+  }
+
+  // Przeciąganie kafelków za uchwyt ⠿ (mysz i dotyk). Kafelek „płynie" za kursorem, a pusty
+  // placeholder pokazuje, gdzie wyląduje. Strzałki góra/dół na uchwycie robią to samo z klawiatury.
+  function bindDayDrag(list, day){
+    if(!list) return;
+    list.querySelectorAll('.tdv-drag-handle').forEach(handle => {
+      const slot = handle.closest('.tdv-slot');
+      handle.addEventListener('keydown', e => {
+        if(e.key !== 'ArrowUp' && e.key !== 'ArrowDown') return;
+        e.preventDefault();
+        const id = slot.dataset.item;
+        window.moveTripDayItemById(day, id, e.key === 'ArrowUp' ? 'up' : 'down');
+        const again = document.querySelector(`#${ctx.containerId} .tdv-slot[data-item="${CSS.escape(id)}"] .tdv-drag-handle`);
+        if(again) again.focus();
+      });
+      handle.addEventListener('pointerdown', e => {
+        if(e.button !== 0) return;
+        e.preventDefault();
+        const rect = slot.getBoundingClientRect();
+        const offsetY = e.clientY - rect.top;
+        const ph = document.createElement('div');
+        ph.className = 'tdv-drop-placeholder';
+        ph.style.height = rect.height + 'px';
+        slot.after(ph);
+        Object.assign(slot.style, { position: 'fixed', left: rect.left + 'px', top: rect.top + 'px', width: rect.width + 'px', zIndex: 1000 });
+        slot.classList.add('tdv-dragging');
+        list.classList.add('tdv-list-dragging');
+        handle.setPointerCapture(e.pointerId);
+        let lastY = e.clientY;
+        let scrollTimer = null;
+
+        function place(y){
+          slot.style.top = (y - offsetY) + 'px';
+          const others = [...list.querySelectorAll('.tdv-slot')].filter(s => s !== slot);
+          const before = others.find(s => { const r = s.getBoundingClientRect(); return y < r.top + r.height / 2; });
+          if(before){ if(ph.nextElementSibling !== before) list.insertBefore(ph, before); }
+          else if(list.lastElementChild !== ph) list.appendChild(ph);
+        }
+        // Przy krawędzi okna strona sama się przewija, żeby dało się przenieść punkt daleko.
+        function autoScroll(y){
+          clearInterval(scrollTimer);
+          const edge = 60, vh = window.innerHeight;
+          const dir = y < edge ? -1 : y > vh - edge ? 1 : 0;
+          if(dir) scrollTimer = setInterval(() => { window.scrollBy(0, dir * 12); place(lastY); }, 16);
+        }
+        const onMove = ev => { lastY = ev.clientY; place(lastY); autoScroll(lastY); };
+        const onUp = () => {
+          clearInterval(scrollTimer);
+          handle.removeEventListener('pointermove', onMove);
+          handle.removeEventListener('pointerup', onUp);
+          handle.removeEventListener('pointercancel', onUp);
+          ph.replaceWith(slot);
+          slot.removeAttribute('style');
+          slot.classList.remove('tdv-dragging');
+          list.classList.remove('tdv-list-dragging');
+          window.reorderTripDayItems(day, [...list.querySelectorAll('.tdv-slot')].map(s => s.dataset.item));
+        };
+        handle.addEventListener('pointermove', onMove);
+        handle.addEventListener('pointerup', onUp);
+        handle.addEventListener('pointercancel', onUp);
+      });
+    });
   }
 
   window.planDayGoBack = () => ctx.selectDay('all');

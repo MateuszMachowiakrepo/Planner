@@ -15,16 +15,9 @@
       contributes: true
     },
     loty: {
-      title: 'Loty',
-      addLabel: 'Nowy lot',
-      columns: [
-        { key: 'kierunek', label: 'Kierunek' },
-        { key: 'przylot', label: 'Czas wylotu' },
-        { key: 'wylot', label: 'Czas przylotu' },
-        { key: 'linia', label: 'Linia lotnicza' },
-        { key: 'przesiadka', label: 'Czas przesiadki' },
-        { key: 'cena', label: 'Cena', type: 'number', money: true }
-      ],
+      title: Transport.TITLE,
+      addLabel: 'Nowy transport',
+      columns: Transport.COLUMNS,
       checkable: true,
       contributes: true,
       grouped: true
@@ -88,10 +81,10 @@
   let researchMap = null;
   let researchMapMode = false;
   let researchMarkers = {};
-  const CAT_TO_TABLE = { attraction: 'atrakcje', restaurant: 'restauracje', place: 'miejscowki' };
-  const TABLE_TO_CAT = { atrakcje: 'attraction', restauracje: 'restaurant', miejscowki: 'place' };
-  const CAT_LABEL = { attraction: 'atrakcję', restaurant: 'restaurację', place: 'miejscówkę' };
-  const CAT_COLOR_FALLBACK = { attraction: '#c026d3', restaurant: '#ea580c', place: '#0d9488' };
+  const CAT_TO_TABLE = { attraction: 'atrakcje', restaurant: 'restauracje', place: 'miejscowki', apartment: 'apartamenty' };
+  const TABLE_TO_CAT = { atrakcje: 'attraction', restauracje: 'restaurant', miejscowki: 'place', apartamenty: 'apartment' };
+  const CAT_LABEL = { attraction: 'atrakcję', restaurant: 'restaurację', place: 'miejscówkę', apartment: 'apartament' };
+  const CAT_COLOR_FALLBACK = { attraction: '#c026d3', restaurant: '#ea580c', place: '#0d9488', apartment: '#2d8a5e' };
 
   // Kolory pinów te same co na mapie podróży (BUILTIN_POINT_CATEGORIES z point-categories.js).
   function catColor(cat){
@@ -106,7 +99,7 @@
   }
 
   function makePinIcon(cat){
-    if(typeof planMakeDot === 'function') return planMakeDot(catColor(cat));
+    if(typeof planMakeDot === 'function') return planMakeDot(catColor(cat), cat);
     return L.divIcon({
       html: `<div style="width:18px;height:18px;background:${catColor(cat)};border:3px solid #fff;border-radius:50%;box-shadow:0 2px 6px rgba(0,0,0,0.3);"></div>`,
       iconSize: [18, 18], iconAnchor: [9, 9], className: ''
@@ -145,6 +138,7 @@
       if(!Array.isArray(board.tables[k])) board.tables[k] = [];
       if(!board.tableNames[k]) board.tableNames[k] = TABLE_DEFS[k].title;
     });
+    if(board.tableNames.loty === Transport.LEGACY_TITLE) board.tableNames.loty = Transport.TITLE;
     if(!Array.isArray(board.points)) board.points = [];
     if(!Array.isArray(board.inspirations)) board.inspirations = [];
     if(!board.plan || typeof board.plan !== 'object') board.plan = {};
@@ -251,13 +245,14 @@
     if(summaryLabel) summaryLabel.textContent = val;
   };
 
-  window.addResearchRow = function(key){
+  window.addResearchRow = function(key, mode){
     const b = getBoard();
     if(!b) return;
     const def = TABLE_DEFS[key];
     const row = { id: genId(), checked: false };
     def.columns.forEach(c => row[c.key] = '');
     if(def.grouped) row.groupId = row.id;
+    if(key === 'loty') row.mode = Transport.modeKey(mode);
     b.tables[key].push(row);
     const cat = TABLE_TO_CAT[key];
     if(cat){
@@ -272,17 +267,22 @@
   window.addResearchFlightLeg = function(groupId){
     const b = getBoard();
     if(!b) return;
-    const def = TABLE_DEFS.loty;
-    const row = { id: genId(), checked: false, groupId };
-    def.columns.forEach(c => row[c.key] = '');
     const rows = b.tables.loty;
     let lastIdx = -1;
     rows.forEach((r, i) => { if((r.groupId || r.id) === groupId) lastIdx = i; });
-    if(lastIdx < 0) rows.push(row);
-    else rows.splice(lastIdx + 1, 0, row);
+    if(lastIdx < 0) return;
+    rows.splice(lastIdx + 1, 0, Transport.newLeg(rows[lastIdx], genId));
     save();
     renderTables();
     renderSummary();
+  };
+
+  window.setResearchTransportMode = function(groupId, mode){
+    const b = getBoard();
+    if(!b) return;
+    b.tables.loty.forEach(r => { if((r.groupId || r.id) === groupId) r.mode = Transport.modeKey(mode); });
+    save();
+    renderTables();
   };
 
   window.updateResearchRow = function(key, rowId, field, val){
@@ -305,6 +305,15 @@
         const m = researchMarkers[rowId];
         if(m) m.setPopupContent(popupHtmlForPoint(point));
       }
+    }
+    if(key === 'loty' && field === 'czyPrzesiadka' && val === 'tak'){
+      // „Tak" na ostatnim etapie od razu dokłada wiersz kolejnego lotu/kursu.
+      const gid = row.groupId || row.id;
+      const group = b.tables.loty.filter(r => (r.groupId || r.id) === gid);
+      if(group[group.length - 1] === row) window.addResearchFlightLeg(gid);
+    } else if(key === 'loty' && (field === 'data' || field === 'przylot' || field === 'wylot')
+              && document.activeElement?.tagName !== 'TEXTAREA'){
+      renderTables(); // przelicza czas przesiadki między etapami
     }
   };
 
@@ -410,16 +419,14 @@
     } else if(def.grouped){
       const groups = groupRows(rows);
       groups.forEach(group => {
-        group.forEach((row, ri) => {
-          bodyHtml += renderRow(row, key, def);
-          if(ri < group.length - 1){
-            bodyHtml += `<tr class="research-row-arrow"><td colspan="${colspan}"><span class="arrow-marker">↓</span></td></tr>`;
-          }
-        });
         const groupId = group[0].groupId || group[0].id;
-        bodyHtml += `<tr class="research-row-groupend"><td colspan="${colspan}">
-          <button type="button" class="research-mini-btn" onclick="addResearchFlightLeg('${groupId}')">+ Przesiadka</button>
-        </td></tr>`;
+        const mode = Transport.modeOf(group);
+        bodyHtml += Transport.groupHeadHtml(groupId, mode, colspan, 'setResearchTransportMode');
+        group.forEach((row, ri) => {
+          bodyHtml += renderRow(row, key, def, mode);
+          if(ri < group.length - 1) bodyHtml += Transport.connectorHtml(row, group[ri + 1], mode, colspan);
+        });
+        bodyHtml += Transport.groupEndHtml(groupId, mode, colspan, 'addResearchFlightLeg');
       });
     } else {
       bodyHtml = rows.map(row => renderRow(row, key, def)).join('');
@@ -443,16 +450,19 @@
         </table>
       </div>
       <div class="research-table-actions">
-        ${def.mapOnly ? '<span class="research-add-hint">Wiersze pojawiają się po dodaniu pinu w zakładce Mapa.</span>' : `<button type="button" class="research-add-btn" onclick="addResearchRow('${key}')">+ ${escapeHtml(def.addLabel)}</button>`}
+        ${def.mapOnly ? '<span class="research-add-hint">Wiersze pojawiają się po dodaniu pinu w zakładce Mapa.</span>' : key === 'loty' ? Transport.MODE_ORDER.map(m => `<button type="button" class="research-add-btn tr-add-btn tr-mode-${m}" onclick="addResearchRow('loty','${m}')">+ ${Transport.MODES[m].label}</button>`).join('') : `<button type="button" class="research-add-btn" onclick="addResearchRow('${key}')">+ ${escapeHtml(def.addLabel)}</button>`}
       </div>
     </section>`;
   }
 
-  function renderRow(row, key, def){
+  function renderRow(row, key, def, mode){
     const checkable = def.checkable;
     const cells = def.columns.map(c => {
       const val = row[c.key] == null ? '' : row[c.key];
-      const label = escapeAttr(c.label);
+      const label = escapeAttr(mode ? Transport.colLabel(c, mode) : c.label);
+      if(mode && !Transport.showsCol(c, mode)) return `<td class="tr-cell-na" data-label="${label}" aria-hidden="true">—</td>`;
+      const special = mode && Transport.specialInputHtml(c, val, mode, `updateResearchRow('${key}','${row.id}','${c.key}', this.value)`);
+      if(special) return `<td data-label="${label}">${special}</td>`;
       if(c.type === 'yesno'){
         const optSel = v => v === val ? 'selected' : '';
         return `<td data-label="${label}"><select class="research-cell-select" onchange="updateResearchRow('${key}','${row.id}','${c.key}', this.value)">
@@ -464,9 +474,10 @@
       if(c.type === 'number'){
         return `<td data-label="${label}"><input class="research-cell-input" type="number" step="0.01" min="0" value="${escapeAttr(val)}" oninput="updateResearchRow('${key}','${row.id}','${c.key}', this.value)"></td>`;
       }
-      return `<td data-label="${label}"><textarea class="research-cell-textarea" rows="1" oninput="updateResearchRow('${key}','${row.id}','${c.key}', this.value); autosizeResearchCell(this)">${escapeHtml(val)}</textarea></td>`;
+      const ph = mode ? ` placeholder="${label}"` : '';
+      return `<td data-label="${label}"><textarea class="research-cell-textarea" rows="1"${ph} oninput="updateResearchRow('${key}','${row.id}','${c.key}', this.value); autosizeResearchCell(this)">${escapeHtml(val)}</textarea></td>`;
     }).join('');
-    return `<tr data-row="${row.id}">
+    return `<tr data-row="${row.id}"${mode ? ` class="tr-row tr-mode-${mode}"` : ''}>
       ${checkable ? `<td class="research-check-col" data-label="Uwzględnij"><input type="checkbox" class="research-check" ${row.checked ? 'checked' : ''} onchange="toggleResearchCheck('${key}','${row.id}', this.checked)"></td>` : ''}
       ${cells}
       <td class="research-del-col"><button type="button" class="research-row-del" title="Usuń wiersz" onclick="removeResearchRow('${key}','${row.id}')">×</button></td>
@@ -541,7 +552,7 @@
     researchMarkers = {};
     (b.points || []).forEach(p => {
       if(!p.coords || p.coords.length !== 2) return;
-      const marker = L.marker(p.coords, { icon: makePinIcon(p.categoryKey) }).addTo(researchMap);
+      const marker = L.marker(p.coords, { icon: makePinIcon(p.categoryKey), zIndexOffset: p.categoryKey === 'apartment' ? 500 : 0 }).addTo(researchMap);
       marker.bindPopup(popupHtmlForPoint(p), { offset: [0, -6] });
       researchMarkers[p.id] = marker;
     });
@@ -692,7 +703,7 @@
     save();
     if(researchMap){
       if(researchMarkers[point.id]){ researchMarkers[point.id].remove(); delete researchMarkers[point.id]; }
-      const marker = L.marker(point.coords, { icon: makePinIcon(point.categoryKey) }).addTo(researchMap);
+      const marker = L.marker(point.coords, { icon: makePinIcon(point.categoryKey), zIndexOffset: point.categoryKey === 'apartment' ? 500 : 0 }).addTo(researchMap);
       marker.bindPopup(popupHtmlForPoint(point), { offset: [0, -6] });
       researchMarkers[point.id] = marker;
     }

@@ -83,7 +83,7 @@
             font-family: var(--font);
             background:
                 linear-gradient(180deg, rgba(8, 22, 40, 0.55) 0%, rgba(8, 22, 40, 0.72) 100%),
-                url('../t%C5%82o.jpg') center center / cover no-repeat fixed,
+                url('../bg-light.jpg') center center / cover no-repeat fixed,
                 #041a2c;
             color: var(--ink);
             min-height: 100vh;
@@ -97,7 +97,7 @@
             body {
                 background:
                     linear-gradient(180deg, rgba(8, 22, 40, 0.55) 0%, rgba(8, 22, 40, 0.78) 100%),
-                    url('../t%C5%82o.jpg') center center / cover no-repeat,
+                    url('../bg-light.jpg') center center / cover no-repeat,
                     #041a2c;
             }
         }
@@ -2717,6 +2717,74 @@
             margin: 0;
         }
         .tdv-items { display: flex; flex-direction: column; gap: 8px; }
+        .tdv-slot { display: flex; flex-direction: column; gap: 8px; }
+
+        /* ── Przeciąganie kafelków dnia ── */
+        .tdv-drag-handle {
+            width: 22px; height: 34px;
+            margin-left: -6px;
+            border: none; border-radius: 6px;
+            background: transparent;
+            color: var(--ink-muted);
+            font-size: 1.05rem; line-height: 1;
+            cursor: grab;
+            touch-action: none;
+            display: flex; align-items: center; justify-content: center;
+            transition: background var(--t), color var(--t);
+        }
+        .tdv-drag-handle:hover, .tdv-drag-handle:focus-visible { background: var(--bg); color: var(--ink); }
+        .tdv-slot.tdv-dragging { pointer-events: none; }
+        .tdv-slot.tdv-dragging .tdv-item {
+            box-shadow: 0 14px 34px rgba(0, 0, 0, 0.22);
+            transform: scale(1.02);
+            cursor: grabbing;
+        }
+        .tdv-slot.tdv-dragging .tdv-travel,
+        .tdv-list-dragging .tdv-travel { visibility: hidden; }
+        .tdv-list-dragging, .tdv-list-dragging * { user-select: none; cursor: grabbing; }
+        .tdv-drop-placeholder {
+            border: 2px dashed color-mix(in srgb, var(--primary) 45%, transparent);
+            border-radius: var(--radius-lg);
+            background: color-mix(in srgb, var(--primary) 6%, transparent);
+        }
+        .tdv-travel-auto {
+            flex: 0 0 auto;
+            padding: 2px 8px;
+            border-radius: 999px;
+            background: color-mix(in srgb, #1e3a8a 10%, var(--card));
+            color: color-mix(in srgb, #1e3a8a 70%, var(--ink));
+            font-weight: 600;
+            font-size: 0.74rem;
+            white-space: nowrap;
+        }
+
+        /* ── Pasek trasy nad mapą dnia ── */
+        .tdv-route-bar {
+            display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+            margin-bottom: 8px;
+        }
+        .tdv-route-switch {
+            display: inline-flex; gap: 3px; padding: 3px;
+            border-radius: 999px;
+            background: var(--card);
+            border: 1px solid var(--border);
+        }
+        .tdv-route-chip {
+            border: none; background: transparent; cursor: pointer;
+            padding: 4px 11px; border-radius: 999px;
+            font-family: var(--font-sans); font-size: 0.78rem; font-weight: 600;
+            color: var(--ink-mid);
+            transition: background var(--t), color var(--t);
+        }
+        .tdv-route-chip:hover { color: var(--ink); }
+        .tdv-route-chip.active { background: #1e3a8a; color: #fff; }
+        .tdv-route-total {
+            font-family: var(--font-sans); font-size: 0.8rem; font-weight: 600;
+            color: var(--ink-mid);
+            padding: 3px 10px; border-radius: 999px;
+            background: color-mix(in srgb, var(--card) 85%, transparent);
+        }
+        .tdv-route-total:empty { display: none; }
         .tdv-empty {
             padding: 22px 18px;
             border: 1px dashed var(--border-mid);
@@ -2729,7 +2797,7 @@
 
         .tdv-item {
             display: grid;
-            grid-template-columns: 32px 1fr auto;
+            grid-template-columns: 22px 32px 1fr auto;
             gap: 12px;
             align-items: center;
             padding: 10px 14px;
@@ -2778,6 +2846,7 @@
         .tdv-item-btn[disabled] { opacity: 0.3; cursor: default; }
         .tdv-item-del:hover { color: var(--danger); border-color: var(--danger); }
         .tdv-item-missing {
+            grid-template-columns: 32px 1fr auto;
             border-left-color: var(--border-mid);
             background: var(--bg);
             color: var(--ink-muted);
@@ -2960,6 +3029,13 @@
             overflow: hidden;
         }
         .tdv-pin-wrap { background: transparent !important; border: none !important; }
+        .map-pin-home {
+            width: 22px; height: 22px;   /* zwykły punkt ma 18 px */
+            border: 3px solid #fff;
+            border-radius: 50%;
+            box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
+            display: flex; align-items: center; justify-content: center;
+        }
         .tdv-pin {
             width: 28px; height: 28px;
             border-radius: 50%;
@@ -3184,7 +3260,11 @@
         @media (max-width: 620px) {
             .tdv-head { padding: 10px 12px; gap: 6px; }
             .tdv-head-title { font-size: 1.15rem; }
-            .tdv-item { grid-template-columns: 28px 1fr; padding: 10px; gap: 8px; }
+            .tdv-item { grid-template-columns: 22px 28px 1fr; padding: 10px; gap: 8px; }
+            .tdv-item-missing { grid-template-columns: 28px 1fr; }
+            .tdv-drag-handle { height: 40px; }
+            .tdv-route-switch { flex: 1; }
+            .tdv-route-chip { flex: 1; padding: 6px 4px; }
             .tdv-item-actions { grid-column: 1 / -1; justify-content: flex-end; }
             .tdv-item-times { flex-wrap: wrap; gap: 6px; }
             .tdv-time-field { flex: 1 1 45%; }
@@ -3877,37 +3957,11 @@
             .inspo-remove:hover { background: var(--danger-l); color: var(--danger); }
         }
 
-        /* ---------- Bilety (podróż) — korzystają z kafelków Inspiracji ---------- */
-        .ticket-form { grid-template-columns: 1fr 0.8fr 1.2fr 0.9fr auto; }
-        .ticket-file-field { position: relative; cursor: pointer; }
-        .ticket-file-field input[type="file"] { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
-        .ticket-file-btn {
-            display: block;
-            padding: 9px 12px;
-            border: 1px dashed var(--border-mid);
-            border-radius: var(--radius-lg);
-            background: var(--card);
-            font-family: var(--font-sans);
-            font-size: 0.88rem;
-            color: var(--ink-mid);
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
-            transition: border-color var(--t), color var(--t);
-        }
-        .ticket-file-field:hover .ticket-file-btn,
-        .ticket-file-field:focus-within .ticket-file-btn { border-color: var(--primary); color: var(--ink); }
-        .ticket-file-btn.has-file { border-style: solid; color: var(--ink); }
+        /* ---------- Strony (podróż) — korzystają z kafelków Inspiracji ---------- */
         .ticket-card { --inspo-accent: var(--nav-brown); }
         .ticket-card[data-source="pdf"]   { --inspo-accent: #c0392b; }
         .ticket-card[data-source="image"] { --inspo-accent: #2e7d5b; }
         .ticket-card[data-source="web"]   { --inspo-accent: var(--primary); }
-        @media (max-width: 760px) {
-            .ticket-form { grid-template-columns: 1fr 1fr; }
-        }
-        @media (max-width: 600px) {
-            .ticket-form { grid-template-columns: 1fr; }
-        }
 
         /* ---------- O kraju (ściągawka) ---------- */
         .country-sheet { display: flex; flex-direction: column; gap: 22px; }
@@ -4164,6 +4218,57 @@
             background: color-mix(in srgb, var(--rsc-accent) 8%, var(--card));
         }
 
+        /* ── Transport: lot / samochód / pociąg-bus — każdy tryb ma własny kolor wierszy ── */
+        :root {
+            --tr-lot:      #2a6496;
+            --tr-samochod: #0f766e;
+            --tr-pociag:   #b45309;
+        }
+        .tr-mode-lot      { --rsc-accent: var(--tr-lot); }
+        .tr-mode-samochod { --rsc-accent: var(--tr-samochod); }
+        .tr-mode-pociag   { --rsc-accent: var(--tr-pociag); }
+        .research-table tr.tr-row td { background: color-mix(in srgb, var(--rsc-accent) 6%, var(--card)); }
+        .research-table tr.tr-row td:first-child { box-shadow: inset 4px 0 0 var(--rsc-accent); }
+        .research-table tr.tr-row .research-check { accent-color: var(--rsc-accent); }
+        .tr-cell-na { color: var(--ink-muted); text-align: center; }
+        .tr-cell-date, .tr-cell-time { min-width: 0; font-variant-numeric: tabular-nums; }
+        .research-cell-textarea::placeholder { color: var(--ink-muted); opacity: 0.6; }
+
+        .tr-group-head td {
+            padding: 10px 10px 6px !important;
+            background: var(--card);
+            border-right: none !important;
+            border-top: 2px solid color-mix(in srgb, var(--rsc-accent) 55%, transparent);
+        }
+        .tr-group-head-inner { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+        .tr-mode-switch {
+            display: inline-flex; gap: 4px; padding: 3px;
+            border-radius: 999px;
+            background: color-mix(in srgb, var(--ink) 5%, var(--card));
+        }
+        .tr-mode-chip {
+            border: none; background: transparent; cursor: pointer;
+            font-family: var(--font-sans); font-size: 0.78rem; font-weight: 600;
+            color: var(--ink-mid);
+            padding: 4px 12px; border-radius: 999px;
+            transition: background var(--t), color var(--t);
+        }
+        .tr-mode-chip:hover { color: var(--ink); }
+        .tr-mode-chip.active { color: #fff; }
+        .tr-mode-chip.active[data-mode="lot"]      { background: var(--tr-lot); }
+        .tr-mode-chip.active[data-mode="samochod"] { background: var(--tr-samochod); }
+        .tr-mode-chip.active[data-mode="pociag"]   { background: var(--tr-pociag); }
+        .tr-layover {
+            margin-left: 8px;
+            font-family: var(--font-sans); font-size: 0.74rem; font-weight: 600;
+            color: color-mix(in srgb, var(--rsc-accent) 80%, var(--ink));
+        }
+        .research-table-actions .tr-add-btn {
+            color: var(--rsc-accent);
+            border-color: color-mix(in srgb, var(--rsc-accent) 45%, transparent);
+        }
+        .research-table-actions:has(.tr-add-btn) { display: flex; flex-wrap: wrap; gap: 8px; }
+
         .research-table-actions {
             margin-top: 8px;
         }
@@ -4320,13 +4425,20 @@
             }
             .research-table tbody td.research-del-col::before { content: none; }
             .research-row-del { opacity: 1; font-size: 1.15rem; padding: 2px 6px; }
-            .research-empty-row td, .research-row-arrow td, .research-row-groupend td {
+            .research-table tr.tr-row td:first-child { box-shadow: none; }
+            .research-table tbody tr.tr-row { border-left: 4px solid var(--rsc-accent); }
+            .research-table tbody tr.tr-row td { background: transparent; }
+            .research-table tbody tr.tr-row td.tr-cell-na { display: none; }
+            .tr-mode-switch { width: 100%; justify-content: space-between; }
+            .tr-mode-chip { flex: 1; padding: 6px 4px; }
+            .research-empty-row td, .research-row-arrow td, .research-row-groupend td, .tr-group-head td {
                 display: block;
                 text-align: center;
                 padding: 8px 0;
                 border-bottom: none !important;
             }
             .research-empty-row td::before,
+            .tr-group-head td::before,
             .research-row-arrow td::before,
             .research-row-groupend td::before { content: none; }
 

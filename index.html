@@ -16,9 +16,9 @@
     <script src="https://cdn.jsdelivr.net/npm/browser-image-compression@2.0.1/dist/browser-image-compression.js"></script>
     <link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32.png">
     
-    <link rel="stylesheet" href="css/styles.css?v=61">
+    <link rel="stylesheet" href="css/styles.css?v=64">
     <link rel="stylesheet" href="css/notes-theme.css?v=2">
-    <link rel="stylesheet" href="css/dark-theme.css?v=1">
+    <link rel="stylesheet" href="css/dark-theme.css?v=2">
     <script src="js/core/theme.js?v=1"></script>
 </head>
 <body>
@@ -135,7 +135,7 @@
                             </span>
                             <div class="tools-card-titles">
                                 <h3 class="tools-card-name" id="tool-research-name">Research</h3>
-                                <p class="tools-card-tagline">Tablica z 6 tabelami: koszty stałe, loty, apartamenty, atrakcje, restauracje, miejscówki + suma.</p>
+                                <p class="tools-card-tagline">Tablica z 6 tabelami: koszty stałe, transport, apartamenty, atrakcje, restauracje, miejscówki + suma.</p>
                             </div>
                             <span class="tools-card-status" data-status="setup">Aktywne</span>
                         </header>
@@ -406,7 +406,7 @@
                     <nav class="trip-board-nav" role="tablist">
                         <button type="button" class="trip-board-navbtn" data-top="tables" role="tab" onclick="setTripTopPanel('tables')">Tabele</button>
                         <button type="button" class="trip-board-navbtn" data-top="calendar" role="tab" onclick="setTripTopPanel('calendar')">Kalendarz</button>
-                        <button type="button" class="trip-board-navbtn" data-top="tickets" role="tab" onclick="setTripTopPanel('tickets')">Bilety</button>
+                        <button type="button" class="trip-board-navbtn" data-top="tickets" role="tab" onclick="setTripTopPanel('tickets')">Strony</button>
                         <button type="button" class="trip-board-navbtn" data-top="country" role="tab" onclick="setTripTopPanel('country')">O kraju</button>
                     </nav>
                     <div class="trip-tables-toolbar" id="trip-tables-toolbar">
@@ -432,26 +432,21 @@
                         <div class="board-container" id="plan-board-container"></div>
                     </div>
                     <div class="trip-board-panel" data-top="tickets" hidden>
-                        <form class="inspo-form ticket-form" onsubmit="event.preventDefault(); addTripTicket()">
+                        <form class="inspo-form" onsubmit="event.preventDefault(); addTripTicket()">
                             <label class="inspo-field">
                                 <span class="inspo-label">Nazwa</span>
-                                <input type="text" id="ticket-name" class="tools-input" placeholder="np. Bilet do muzeum" autocomplete="off">
+                                <input type="text" id="ticket-name" class="tools-input" placeholder="np. Luwr" autocomplete="off">
                             </label>
                             <label class="inspo-field">
                                 <span class="inspo-label">Rodzaj</span>
-                                <input type="text" id="ticket-kind" class="tools-input" placeholder="np. muzeum, atrakcja, pociąg" list="ticket-kinds" autocomplete="off">
+                                <input type="text" id="ticket-kind" class="tools-input" placeholder="np. muzeum, atrakcja" list="ticket-kinds" autocomplete="off">
                                 <datalist id="ticket-kinds"></datalist>
                             </label>
                             <label class="inspo-field inspo-field-link">
                                 <span class="inspo-label">Link</span>
-                                <input type="text" id="ticket-link" class="tools-input" placeholder="https://… (albo dodaj plik)" autocomplete="off">
+                                <input type="text" id="ticket-link" class="tools-input" placeholder="https://…" autocomplete="off">
                             </label>
-                            <label class="inspo-field ticket-file-field">
-                                <span class="inspo-label">Plik</span>
-                                <span class="ticket-file-btn" id="ticket-file-label">Wybierz plik</span>
-                                <input type="file" id="ticket-file" accept="application/pdf,image/*,.pkpass" onchange="onTripTicketFileChange(this)">
-                            </label>
-                            <button type="submit" class="btn btn-primary inspo-add-btn" id="ticket-add-btn">Dodaj</button>
+                            <button type="submit" class="btn btn-primary inspo-add-btn">Dodaj</button>
                         </form>
                         <div id="ticket-filters" class="inspo-filters"></div>
                         <div id="ticket-list" class="inspo-list"></div>
@@ -473,8 +468,9 @@
     <script src="js/plan/point-categories.js?v=22"></script>
     <script src="js/trips/trips.js?v=15"></script>
     <script src="js/stats/stats.js?v=14"></script>
-    <script src="js/plan/maps-routing.js?v=20"></script>
-    <script src="js/plan/plan.js?v=25"></script>
+    <script src="js/plan/route-lines.js?v=1"></script>
+    <script src="js/plan/maps-routing.js?v=21"></script>
+    <script src="js/plan/plan.js?v=27"></script>
 
     <div id="tools-cal-modal" class="tools-cal-modal" hidden role="dialog" aria-modal="true" aria-labelledby="tools-cal-modal-title">
         <div class="tools-cal-modal-backdrop" onclick="closeCalendarModal()"></div>
@@ -494,11 +490,12 @@
 
     <script src="js/nav/tools.js?v=6"></script>
     <script src="js/nav/fx.js?v=3"></script>
-    <script src="js/research/research.js?v=14"></script>
-    <script src="js/trip/trip-tables.js?v=13"></script>
-    <script src="js/trip/trip-day.js?v=9"></script>
-    <script src="js/trip/today.js?v=3"></script>
-    <script src="js/trip/trip-tickets.js?v=1"></script>
+    <script src="js/core/transport.js?v=2"></script>
+    <script src="js/research/research.js?v=17"></script>
+    <script src="js/trip/trip-tables.js?v=15"></script>
+    <script src="js/trip/trip-day.js?v=11"></script>
+    <script src="js/trip/today.js?v=4"></script>
+    <script src="js/trip/trip-tickets.js?v=3"></script>
     <script>
         // Aplikacja na telefon (PWA): service worker + przycisk instalacji.
         if ('serviceWorker' in navigator) {

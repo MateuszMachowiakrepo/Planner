@@ -2,7 +2,7 @@
 // - Własne pliki: najpierw sieć (zawsze świeża wersja), bez sieci — kopia z cache.
 // - Biblioteki z CDN (Firebase SDK, Leaflet, Chart.js, fonty): z cache, odświeżane w tle.
 // - Firestore, logowanie, kafelki mapy, kursy walut itp. idą zawsze prosto do sieci.
-const CACHE = 'planner-v1';
+const CACHE = 'planner-v2';
 
 const PRECACHE = [
   './',
@@ -17,19 +17,21 @@ const PRECACHE = [
   'js/core/country-names.js',
   'js/core/country-sheet.js',
   'js/plan/point-categories.js',
+  'js/plan/route-lines.js',
   'js/plan/maps-routing.js',
   'js/plan/plan.js',
   'js/trips/trips.js',
   'js/stats/stats.js',
   'js/nav/tools.js',
   'js/nav/fx.js',
+  'js/core/transport.js',
   'js/research/research.js',
   'js/trip/trip-tables.js',
   'js/trip/trip-day.js',
   'js/trip/today.js',
   'js/trip/trip-tickets.js',
-  'tło.jpg',
-  'tlo2.jpg',
+  'bg-light.jpg',
+  'bg-dark.jpg',
   'icons/icon-192.png',
   'icons/icon-512.png'
 ];

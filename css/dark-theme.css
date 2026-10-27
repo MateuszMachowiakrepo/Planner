@@ -55,20 +55,23 @@ html[data-theme="dark"] {
     --rsc-atrakcje:    #f0a246;
     --rsc-restauracje: #cda47a;
     --rsc-miejscowki:  #ad90da;
+    --tr-lot:      #5f9fd8;
+    --tr-samochod: #2fa597;
+    --tr-pociag:   #d98a3a;
 }
 
 /* ── Tło: nocne zdjęcie ───────────────────────────────────────────────── */
 html[data-theme="dark"] body {
     background:
         linear-gradient(180deg, rgba(6, 8, 20, 0.40) 0%, rgba(6, 8, 20, 0.68) 100%),
-        url('../tlo2.jpg') center center / cover no-repeat fixed,
+        url('../bg-dark.jpg') center center / cover no-repeat fixed,
         #0b0d1a;
 }
 @media (max-width: 900px) {
     html[data-theme="dark"] body {
         background:
             linear-gradient(180deg, rgba(6, 8, 20, 0.40) 0%, rgba(6, 8, 20, 0.74) 100%),
-            url('../tlo2.jpg') center center / cover no-repeat,
+            url('../bg-dark.jpg') center center / cover no-repeat,
             #0b0d1a;
     }
 }
@@ -108,3 +111,7 @@ html[data-theme="dark"] .leaflet-popup-tip { background: var(--card); color: var
 html[data-theme="dark"] .leaflet-bar a { background: var(--card); color: var(--ink); border-color: var(--border); }
 html[data-theme="dark"] .leaflet-control-attribution { background: color-mix(in srgb, var(--card) 92%, transparent); color: var(--ink-mid); }
 html[data-theme="dark"] .leaflet-control-attribution a { color: var(--primary-h); }
+
+/* ── Trasy dnia: jaśniejszy granat na ciemnym tle ───────────────────── */
+html[data-theme="dark"] .tdv-route-chip.active { background: #5f86d8; }
+html[data-theme="dark"] .tdv-travel-auto { background: color-mix(in srgb, #5f86d8 22%, var(--card)); color: #c9d8f7; }

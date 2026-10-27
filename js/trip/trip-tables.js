@@ -13,15 +13,8 @@
       checkable: true, contributes: true
     },
     loty: {
-      title: 'Loty', addLabel: 'Nowy lot',
-      columns: [
-        { key: 'kierunek', label: 'Kierunek' },
-        { key: 'przylot', label: 'Czas wylotu' },
-        { key: 'wylot', label: 'Czas przylotu' },
-        { key: 'linia', label: 'Linia lotnicza' },
-        { key: 'przesiadka', label: 'Czas przesiadki' },
-        { key: 'cena', label: 'Cena', type: 'number', money: true }
-      ],
+      title: Transport.TITLE, addLabel: 'Nowy transport',
+      columns: Transport.COLUMNS,
       checkable: true, contributes: true, grouped: true
     },
     apartamenty: {
@@ -91,6 +84,7 @@
       if(!Array.isArray(trip.tables[k])) trip.tables[k] = [];
       if(!trip.tableNames[k]) trip.tableNames[k] = TABLE_DEFS[k].title;
     });
+    if(trip.tableNames.loty === Transport.LEGACY_TITLE) trip.tableNames.loty = Transport.TITLE;
     if(trip.tripBudget == null && trip.budget != null && trip.budget !== '') trip.tripBudget = Number(trip.budget) || '';
   }
 
@@ -164,12 +158,13 @@
     if(summaryLabel) summaryLabel.textContent = val;
   };
 
-  window.addTripTableRow = function(key){
+  window.addTripTableRow = function(key, mode){
     const t = getTrip(); if(!t) return;
     const def = TABLE_DEFS[key];
     const row = { id: genId(), checked: false };
     def.columns.forEach(c => row[c.key] = '');
     if(def.grouped) row.groupId = row.id;
+    if(key === 'loty') row.mode = Transport.modeKey(mode);
     t.tables[key].push(row);
     const cat = TABLE_TO_CAT[key];
     if(cat){
@@ -186,17 +181,21 @@
 
   window.addTripFlightLeg = function(groupId){
     const t = getTrip(); if(!t) return;
-    const def = TABLE_DEFS.loty;
-    const row = { id: genId(), checked: false, groupId };
-    def.columns.forEach(c => row[c.key] = '');
     const rows = t.tables.loty;
     let lastIdx = -1;
     rows.forEach((r, i) => { if((r.groupId || r.id) === groupId) lastIdx = i; });
-    if(lastIdx < 0) rows.push(row);
-    else rows.splice(lastIdx + 1, 0, row);
+    if(lastIdx < 0) return;
+    rows.splice(lastIdx + 1, 0, Transport.newLeg(rows[lastIdx], genId));
     save();
     renderTables();
     renderSummary();
+  };
+
+  window.setTripTransportMode = function(groupId, mode){
+    const t = getTrip(); if(!t) return;
+    t.tables.loty.forEach(r => { if((r.groupId || r.id) === groupId) r.mode = Transport.modeKey(mode); });
+    save();
+    renderTables();
   };
 
   window.updateTripTableRow = function(key, rowId, field, val){
@@ -213,6 +212,15 @@
     }
     if(field === 'nazwa' && typeof window.syncTripPointNameFromRow === 'function'){
       window.syncTripPointNameFromRow(rowId, val);
+    }
+    if(key === 'loty' && field === 'czyPrzesiadka' && val === 'tak'){
+      // „Tak" na ostatnim etapie od razu dokłada wiersz kolejnego lotu/kursu.
+      const gid = row.groupId || row.id;
+      const group = t.tables.loty.filter(r => (r.groupId || r.id) === gid);
+      if(group[group.length - 1] === row) window.addTripFlightLeg(gid);
+    } else if(key === 'loty' && (field === 'data' || field === 'przylot' || field === 'wylot')
+              && document.activeElement?.tagName !== 'TEXTAREA'){
+      renderTables(); // przelicza czas przesiadki między etapami
     }
   };
 
@@ -262,16 +270,14 @@
     } else if(def.grouped){
       const groups = groupRows(rows);
       groups.forEach(group => {
-        group.forEach((row, ri) => {
-          bodyHtml += renderRow(row, key, def);
-          if(ri < group.length - 1){
-            bodyHtml += `<tr class="research-row-arrow"><td colspan="${colspan}"><span class="arrow-marker">↓</span></td></tr>`;
-          }
-        });
         const groupId = group[0].groupId || group[0].id;
-        bodyHtml += `<tr class="research-row-groupend"><td colspan="${colspan}">
-          <button type="button" class="research-mini-btn" onclick="addTripFlightLeg('${groupId}')">+ Przesiadka</button>
-        </td></tr>`;
+        const mode = Transport.modeOf(group);
+        bodyHtml += Transport.groupHeadHtml(groupId, mode, colspan, 'setTripTransportMode');
+        group.forEach((row, ri) => {
+          bodyHtml += renderRow(row, key, def, mode);
+          if(ri < group.length - 1) bodyHtml += Transport.connectorHtml(row, group[ri + 1], mode, colspan);
+        });
+        bodyHtml += Transport.groupEndHtml(groupId, mode, colspan, 'addTripFlightLeg');
       });
     } else {
       bodyHtml = rows.map(row => renderRow(row, key, def)).join('');
@@ -279,6 +285,8 @@
 
     const addBtnHtml = def.mapOnly
       ? '<span class="research-add-hint">Wiersze pojawiają się po dodaniu pinu w zakładce Mapa.</span>'
+      : key === 'loty'
+      ? Transport.MODE_ORDER.map(m => `<button type="button" class="research-add-btn tr-add-btn tr-mode-${m}" onclick="addTripTableRow('loty','${m}')">+ ${Transport.MODES[m].label}</button>`).join('')
       : `<button type="button" class="research-add-btn" onclick="addTripTableRow('${key}')">+ ${escapeHtml(def.addLabel)}</button>`;
 
     return `<section class="research-table-section research-theme-${key}" data-table="${key}">
@@ -302,11 +310,14 @@
     </section>`;
   }
 
-  function renderRow(row, key, def){
+  function renderRow(row, key, def, mode){
     const checkable = def.checkable;
     const cells = def.columns.map(c => {
       const val = row[c.key] == null ? '' : row[c.key];
-      const label = escapeAttr(c.label);
+      const label = escapeAttr(mode ? Transport.colLabel(c, mode) : c.label);
+      if(mode && !Transport.showsCol(c, mode)) return `<td class="tr-cell-na" data-label="${label}" aria-hidden="true">—</td>`;
+      const special = mode && Transport.specialInputHtml(c, val, mode, `updateTripTableRow('${key}','${row.id}','${c.key}', this.value)`);
+      if(special) return `<td data-label="${label}">${special}</td>`;
       if(c.type === 'yesno'){
         const optSel = v => v === val ? 'selected' : '';
         return `<td data-label="${label}"><select class="research-cell-select" onchange="updateTripTableRow('${key}','${row.id}','${c.key}', this.value)">
@@ -318,9 +329,10 @@
       if(c.type === 'number'){
         return `<td data-label="${label}"><input class="research-cell-input" type="number" step="0.01" min="0" value="${escapeAttr(val)}" oninput="updateTripTableRow('${key}','${row.id}','${c.key}', this.value)"></td>`;
       }
-      return `<td data-label="${label}"><textarea class="research-cell-textarea" rows="1" oninput="updateTripTableRow('${key}','${row.id}','${c.key}', this.value); autosizeResearchCell(this)">${escapeHtml(val)}</textarea></td>`;
+      const ph = mode ? ` placeholder="${label}"` : '';
+      return `<td data-label="${label}"><textarea class="research-cell-textarea" rows="1"${ph} oninput="updateTripTableRow('${key}','${row.id}','${c.key}', this.value); autosizeResearchCell(this)">${escapeHtml(val)}</textarea></td>`;
     }).join('');
-    return `<tr data-row="${row.id}">
+    return `<tr data-row="${row.id}"${mode ? ` class="tr-row tr-mode-${mode}"` : ''}>
       ${checkable ? `<td class="research-check-col" data-label="Zapłacone"><input type="checkbox" class="research-check" ${row.checked ? 'checked' : ''} onchange="toggleTripTableCheck('${key}','${row.id}', this.checked)" title="Zaznacz jako opłacone"></td>` : ''}
       ${cells}
       <td class="research-del-col"><button type="button" class="research-row-del" title="Usuń wiersz" onclick="removeTripTableRow('${key}','${row.id}')">×</button></td>

@@ -23,7 +23,12 @@
         }
 
 
-        function planMakeDot(color) {
+        // Apartament (baza noclegowa) dostaje większy pin z domkiem, żeby wyróżniał się wśród punktów.
+        function planMakeDot(color, categoryKey) {
+            if (categoryKey === 'apartment') return L.divIcon({
+                html: `<div class="map-pin-home" style="background:${color};"><svg viewBox="0 0 24 24" width="12" height="12" aria-hidden="true"><path fill="#fff" d="M12 3.2 2.6 11.1a1 1 0 0 0 1.3 1.5l.9-.8V20a1 1 0 0 0 1 1h4.4v-5.6h3.6V21h4.4a1 1 0 0 0 1-1v-8.2l.9.8a1 1 0 0 0 1.3-1.5z"/></svg></div>`,
+                iconSize: [22, 22], iconAnchor: [11, 11], className: ''
+            });
             return L.divIcon({
                 html: `<div style="width:18px;height:18px;background:${color};border:3px solid #fff;border-radius:50%;box-shadow:0 2px 6px rgba(0,0,0,0.3);"></div>`,
                 iconSize: [18, 18], iconAnchor: [9, 9], className: ''
@@ -152,7 +157,7 @@
                 return;
             }
             document.querySelectorAll('.tmm-picker-backdrop').forEach(el => el.remove());
-            const excludedFromMap = new Set(['city', 'apartment']);
+            const excludedFromMap = new Set(['city']);
             const cats = allPointCategories(trip).filter(cat => !excludedFromMap.has(cat.key));
             const rows = cats.map(cat => `<button type="button" class="tmm-picker-row" data-cat="${cat.key}" style="--cat:${cat.color};">
                 <span class="tmm-picker-dot" aria-hidden="true"></span>

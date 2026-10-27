@@ -72,7 +72,7 @@
             L.tileLayer(PLAN_TILE_URL, { attribution: PLAN_TILE_ATTR, maxZoom: 19 }).addTo(map);
             points.forEach(p => {
                 const color = categoryByKey(trip, p.categoryKey).color;
-                const marker = L.marker(p.coords, { icon: planMakeDot(color) }).addTo(map);
+                const marker = L.marker(p.coords, { icon: planMakeDot(color, p.categoryKey), zIndexOffset: p.categoryKey === 'apartment' ? 500 : 0 }).addTo(map);
                 marker.on('click', () => focusMapOnMarker(map, marker, p, { generalMap: true }));
                 planMarkers.push(marker);
             });

@@ -161,7 +161,8 @@
       coords.push(point.coords);
     });
     if(coords.length >= 2){
-      L.polyline(coords, { color: '#1e3a8a', weight: 3.5, opacity: 0.9, dashArray: '6,6' }).addTo(qvMap);
+      const meta = trip.dayMeta && qvState && trip.dayMeta[qvState.day];
+      RouteLines.draw(qvMap, coords, { profile: meta && meta.routeMode });
       qvMap.fitBounds(L.latLngBounds(coords), { padding: [30, 30] });
     } else if(coords.length === 1){
       qvMap.setView(coords[0], 14);
