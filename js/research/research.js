@@ -1,5 +1,13 @@
 (function(){
-  const TABLE_ORDER = ['koszty', 'loty', 'apartamenty', 'atrakcje', 'restauracje', 'miejscowki'];
+  const TABLE_ORDER_FULL = ['koszty', 'loty', 'apartamenty', 'atrakcje', 'restauracje', 'miejscowki'];
+  const TABLE_ORDER_QUICK = ['koszty_mix', 'miejscowki'];
+  const QUICK_TYPE_OPTIONS = ['koszt', 'apartament', 'transport', 'restauracja', 'atrakcja'];
+  const QUICK_TYPE_LABELS = { koszt: 'Koszt', apartament: 'Apartament', transport: 'Transport', restauracja: 'Restauracja', atrakcja: 'Atrakcja' };
+  const QUICK_TYPE_FROM_CAT = { attraction: 'atrakcja', restaurant: 'restauracja', apartment: 'apartament' };
+  const QUICK_CAT_FROM_TYPE = { atrakcja: 'attraction', restauracja: 'restaurant', apartament: 'apartment' };
+
+  function isQuick(board){ return !!(board && board.quick); }
+  function tableOrderFor(board){ return isQuick(board) ? TABLE_ORDER_QUICK : TABLE_ORDER_FULL; }
 
   const TABLE_DEFS = {
     koszty: {
@@ -43,6 +51,7 @@
         { key: 'kategoria', label: 'Kategoria' },
         { key: 'miejsce', label: 'Miejsce' },
         { key: 'czas', label: 'Czas trwania' },
+        { key: 'otwarcie', label: 'Godziny otwarcia' },
         { key: 'cena', label: 'Cena', type: 'number', money: true }
       ],
       checkable: true,
@@ -56,6 +65,7 @@
         { key: 'lokalizacja', label: 'Lokalizacja' },
         { key: 'kuchnia', label: 'Rodzaj kuchni' },
         { key: 'oceny', label: 'Oceny' },
+        { key: 'otwarcie', label: 'Godziny otwarcia' },
         { key: 'cena', label: 'Cena', type: 'number', money: true }
       ],
       checkable: true,
@@ -68,10 +78,23 @@
         { key: 'nazwa', label: 'Nazwa' },
         { key: 'kategoria', label: 'Kategoria' },
         { key: 'lokalizacja', label: 'Lokalizacja' },
-        { key: 'walory', label: 'Walory' }
+        { key: 'walory', label: 'Walory' },
+        { key: 'otwarcie', label: 'Godziny otwarcia' }
       ],
       checkable: false,
       contributes: false
+    },
+    koszty_mix: {
+      title: 'Koszty',
+      addLabel: 'Dodaj wiersz',
+      columns: [
+        { key: 'nazwa', label: 'Nazwa' },
+        { key: 'typ', label: 'Typ', type: 'select', options: QUICK_TYPE_OPTIONS, optionLabels: QUICK_TYPE_LABELS },
+        { key: 'ocena', label: 'Ocena' },
+        { key: 'cena', label: 'Cena', type: 'number', money: true }
+      ],
+      checkable: true,
+      contributes: true
     }
   };
 
@@ -134,13 +157,14 @@
   function ensureTables(board){
     board.tables = board.tables || {};
     board.tableNames = board.tableNames || {};
-    TABLE_ORDER.forEach(k => {
+    tableOrderFor(board).forEach(k => {
       if(!Array.isArray(board.tables[k])) board.tables[k] = [];
       if(!board.tableNames[k]) board.tableNames[k] = TABLE_DEFS[k].title;
     });
     if(board.tableNames.loty === Transport.LEGACY_TITLE) board.tableNames.loty = Transport.TITLE;
     if(!Array.isArray(board.points)) board.points = [];
     if(!Array.isArray(board.inspirations)) board.inspirations = [];
+    if(!Array.isArray(board.sites)) board.sites = [];
     if(!board.plan || typeof board.plan !== 'object') board.plan = {};
     if(!board.plan.days || typeof board.plan.days !== 'object') board.plan.days = {};
     if(!board.dayMeta || typeof board.dayMeta !== 'object') board.dayMeta = {};
@@ -162,7 +186,7 @@
   function calcBoardTotal(board){
     ensureTables(board);
     let total = 0;
-    TABLE_ORDER.forEach(k => {
+    tableOrderFor(board).forEach(k => {
       const def = TABLE_DEFS[k];
       if(!def.contributes) return;
       total += sumForTable(board.tables[k] || [], def);
@@ -182,8 +206,8 @@
 
   function save(){ if(typeof window.saveResearch === 'function') window.saveResearch(); }
 
-  window.createResearchBoard = function(){
-    const board = { id: genId(), name: 'Nowa tablica', budget: '', tables: {}, tableNames: {} };
+  function createBoardWithKind(quick){
+    const board = { id: genId(), name: 'Nowa tablica', budget: '', quick: !!quick, tables: {}, tableNames: {} };
     ensureTables(board);
     window.research = window.research || [];
     window.research.push(board);
@@ -191,6 +215,44 @@
     currentResearchBoardId = board.id;
     researchPlanDay = 'all';
     renderBoard();
+  }
+
+  window.createResearchBoard = function(){
+    const bd = document.createElement('div');
+    bd.className = 'tmm-picker-backdrop';
+    bd.innerHTML = `<div class="tmm-picker-card" role="dialog" aria-modal="true" aria-label="Nowa tablica">
+        <div class="tmm-picker-head">
+            <h3>Nowa tablica</h3>
+            <button type="button" class="qr-close" data-close aria-label="Zamknij">×</button>
+        </div>
+        <div class="tmm-picker-list">
+            <button type="button" class="tmm-picker-row" data-kind="full">
+                <span class="tmm-picker-text">
+                    <span class="tmm-picker-label">Zwykła tablica</span>
+                    <span class="tmm-picker-note">Pełny zestaw: koszty, transport, apartamenty, atrakcje, restauracje, miejsca.</span>
+                </span>
+                <span class="tmm-picker-chev" aria-hidden="true">›</span>
+            </button>
+            <button type="button" class="tmm-picker-row" data-kind="quick">
+                <span class="tmm-picker-text">
+                    <span class="tmm-picker-label">Szybka podróż</span>
+                    <span class="tmm-picker-note">Dwie tabele: Koszty (z typem) i Miejsca.</span>
+                </span>
+                <span class="tmm-picker-chev" aria-hidden="true">›</span>
+            </button>
+        </div>
+    </div>`;
+    const close = () => bd.remove();
+    bd.addEventListener('click', e => { if(e.target === bd) close(); });
+    bd.querySelector('[data-close]').addEventListener('click', close);
+    bd.querySelectorAll('.tmm-picker-row[data-kind]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const quick = btn.dataset.kind === 'quick';
+        close();
+        createBoardWithKind(quick);
+      });
+    });
+    document.body.appendChild(bd);
   };
 
   window.openResearchBoardById = function(id){
@@ -233,6 +295,11 @@
     else b[field] = val;
     save();
     if(field === 'budget') renderSummary();
+    if(field === 'quick'){
+      ensureTables(b);
+      renderTables();
+      renderSummary();
+    }
   };
 
   window.updateResearchTableName = function(key, val){
@@ -253,6 +320,7 @@
     def.columns.forEach(c => row[c.key] = '');
     if(def.grouped) row.groupId = row.id;
     if(key === 'loty') row.mode = Transport.modeKey(mode);
+    if(key === 'koszty_mix') row.typ = 'koszt';
     b.tables[key].push(row);
     const cat = TABLE_TO_CAT[key];
     if(cat){
@@ -277,10 +345,12 @@
     renderSummary();
   };
 
-  window.setResearchTransportMode = function(groupId, mode){
+  window.setResearchTransportMode = function(rowId, mode){
     const b = getBoard();
     if(!b) return;
-    b.tables.loty.forEach(r => { if((r.groupId || r.id) === groupId) r.mode = Transport.modeKey(mode); });
+    const row = b.tables.loty.find(r => r.id === rowId);
+    if(!row) return;
+    row.mode = Transport.modeKey(mode);
     save();
     renderTables();
   };
@@ -298,12 +368,28 @@
       updateTableSum(key);
       renderSummary();
     }
-    if(field === 'nazwa' && TABLE_TO_CAT[key]){
+    if(field === 'nazwa' && (TABLE_TO_CAT[key] || key === 'koszty_mix')){
       const point = (b.points || []).find(p => p.id === rowId);
       if(point){
         point.name = val;
         const m = researchMarkers[rowId];
         if(m) m.setPopupContent(popupHtmlForPoint(point));
+      }
+    }
+    if(key === 'koszty_mix' && field === 'typ'){
+      const point = (b.points || []).find(p => p.id === rowId);
+      const newCat = QUICK_CAT_FROM_TYPE[val];
+      if(point && newCat){
+        point.categoryKey = newCat;
+        if(researchMarkers[rowId]){
+          researchMarkers[rowId].remove();
+          delete researchMarkers[rowId];
+          if(point.coords && researchMap && typeof L !== 'undefined'){
+            const marker = L.marker(point.coords, { icon: makePinIcon(newCat), zIndexOffset: newCat === 'apartment' ? 500 : 0 }).addTo(researchMap);
+            marker.bindPopup(popupHtmlForPoint(point), { offset: [0, -6] });
+            researchMarkers[rowId] = marker;
+          }
+        }
       }
     }
     if(key === 'loty' && field === 'czyPrzesiadka' && val === 'tak'){
@@ -333,7 +419,7 @@
     if(!b) return;
     if(!confirm('Usunąć ten wiersz? Tej operacji nie da się cofnąć.')) return;
     b.tables[key] = b.tables[key].filter(r => r.id !== rowId);
-    if(TABLE_TO_CAT[key]){
+    if(TABLE_TO_CAT[key] || key === 'koszty_mix'){
       b.points = (b.points || []).filter(p => p.id !== rowId);
       if(researchMarkers[rowId]){ researchMarkers[rowId].remove(); delete researchMarkers[rowId]; }
       if(typeof window.prunePlanItemsForRow === 'function') window.prunePlanItemsForRow(b, rowId);
@@ -369,8 +455,10 @@
       const total = calcBoardTotal(b);
       const budget = Number(b.budget) || 0;
       const meta = budget ? `${money(total)} zł / ${money(budget)} zł` : `${money(total)} zł`;
-      return `<button type="button" class="research-hub-item" data-id="${escapeAttr(b.id)}" onclick="openResearchBoardById('${b.id}')">
-        <span class="research-hub-item-name">${escapeHtml(b.name || 'Bez nazwy')}</span>
+      const quickCls = b.quick ? ' research-hub-item-quick' : '';
+      const quickTag = b.quick ? '<span class="research-hub-item-tag">Szybka</span>' : '';
+      return `<button type="button" class="research-hub-item${quickCls}" data-id="${escapeAttr(b.id)}" onclick="openResearchBoardById('${b.id}')">
+        <span class="research-hub-item-name">${escapeHtml(b.name || 'Bez nazwy')}${quickTag}</span>
         <span class="research-hub-item-meta">${meta}</span>
       </button>`;
     }).join('');
@@ -388,6 +476,8 @@
 
     document.getElementById('research-board-title').value = b.name || '';
     document.getElementById('research-budget-input').value = (b.budget === '' || b.budget == null) ? '' : b.budget;
+    const quickEl = document.getElementById('research-quick');
+    if(quickEl) quickEl.checked = !!b.quick;
     renderTables();
     renderSummary();
     window.setResearchBoardPanel(currentResearchPanel || 'tables');
@@ -398,7 +488,7 @@
     if(!b) return;
     const cont = document.getElementById('research-tables');
     if(!cont) return;
-    cont.innerHTML = TABLE_ORDER.map(k => renderTable(k, b)).join('');
+    cont.innerHTML = tableOrderFor(b).map(k => renderTable(k, b)).join('');
     requestAnimationFrame(autosizeAllResearchCells);
   }
 
@@ -420,13 +510,11 @@
       const groups = groupRows(rows);
       groups.forEach(group => {
         const groupId = group[0].groupId || group[0].id;
-        const mode = Transport.modeOf(group);
-        bodyHtml += Transport.groupHeadHtml(groupId, mode, colspan, 'setResearchTransportMode');
         group.forEach((row, ri) => {
+          const mode = Transport.rowMode(row, group);
           bodyHtml += renderRow(row, key, def, mode);
           if(ri < group.length - 1) bodyHtml += Transport.connectorHtml(row, group[ri + 1], mode, colspan);
         });
-        bodyHtml += Transport.groupEndHtml(groupId, mode, colspan, 'addResearchFlightLeg');
       });
     } else {
       bodyHtml = rows.map(row => renderRow(row, key, def)).join('');
@@ -450,7 +538,7 @@
         </table>
       </div>
       <div class="research-table-actions">
-        ${def.mapOnly ? '<span class="research-add-hint">Wiersze pojawiają się po dodaniu pinu w zakładce Mapa.</span>' : key === 'loty' ? Transport.MODE_ORDER.map(m => `<button type="button" class="research-add-btn tr-add-btn tr-mode-${m}" onclick="addResearchRow('loty','${m}')">+ ${Transport.MODES[m].label}</button>`).join('') : `<button type="button" class="research-add-btn" onclick="addResearchRow('${key}')">+ ${escapeHtml(def.addLabel)}</button>`}
+        ${def.mapOnly ? '<span class="research-add-hint">Wiersze pojawiają się po dodaniu pinu w zakładce Mapa.</span>' : key === 'loty' ? `<button type="button" class="research-add-btn" onclick="addResearchRow('loty','lot')">+ ${escapeHtml(def.addLabel)}</button>` : `<button type="button" class="research-add-btn" onclick="addResearchRow('${key}')">+ ${escapeHtml(def.addLabel)}</button>`}
       </div>
     </section>`;
   }
@@ -460,6 +548,7 @@
     const cells = def.columns.map(c => {
       const val = row[c.key] == null ? '' : row[c.key];
       const label = escapeAttr(mode ? Transport.colLabel(c, mode) : c.label);
+      if(mode && c.modeCell) return `<td data-label="${label}">${Transport.modeCellHtml(row, mode, `setResearchTransportMode('${row.id}', this.value)`, `updateResearchRow('${key}','${row.id}','${c.key}', this.value)`)}</td>`;
       if(mode && !Transport.showsCol(c, mode)) return `<td class="tr-cell-na" data-label="${label}" aria-hidden="true">—</td>`;
       const special = mode && Transport.specialInputHtml(c, val, mode, `updateResearchRow('${key}','${row.id}','${c.key}', this.value)`);
       if(special) return `<td data-label="${label}">${special}</td>`;
@@ -471,13 +560,20 @@
           <option value="nie" ${optSel('nie')}>Nie</option>
         </select></td>`;
       }
+      if(c.type === 'select'){
+        const labels = c.optionLabels || {};
+        const opts = c.options.map(o => `<option value="${escapeAttr(o)}" ${o === val ? 'selected' : ''}>${escapeHtml(labels[o] || o)}</option>`).join('');
+        return `<td data-label="${label}"><select class="research-cell-select" onchange="updateResearchRow('${key}','${row.id}','${c.key}', this.value)">${opts}</select></td>`;
+      }
       if(c.type === 'number'){
         return `<td data-label="${label}"><input class="research-cell-input" type="number" step="0.01" min="0" value="${escapeAttr(val)}" oninput="updateResearchRow('${key}','${row.id}','${c.key}', this.value)"></td>`;
       }
       const ph = mode ? ` placeholder="${label}"` : '';
       return `<td data-label="${label}"><textarea class="research-cell-textarea" rows="1"${ph} oninput="updateResearchRow('${key}','${row.id}','${c.key}', this.value); autosizeResearchCell(this)">${escapeHtml(val)}</textarea></td>`;
     }).join('');
-    return `<tr data-row="${row.id}"${mode ? ` class="tr-row tr-mode-${mode}"` : ''}>
+    const typAttr = (key === 'koszty_mix' && row.typ) ? ` data-typ="${escapeAttr(row.typ)}"` : '';
+    const trClass = mode ? ` class="tr-row tr-mode-${mode}"` : (key === 'koszty_mix' ? ` class="koszty-mix-row"` : '');
+    return `<tr data-row="${row.id}"${typAttr}${trClass}>
       ${checkable ? `<td class="research-check-col" data-label="Uwzględnij"><input type="checkbox" class="research-check" ${row.checked ? 'checked' : ''} onchange="toggleResearchCheck('${key}','${row.id}', this.checked)"></td>` : ''}
       ${cells}
       <td class="research-del-col"><button type="button" class="research-row-del" title="Usuń wiersz" onclick="removeResearchRow('${key}','${row.id}')">×</button></td>
@@ -500,7 +596,7 @@
     if(!b) return;
     const el = document.getElementById('research-summary');
     if(!el) return;
-    const rows = TABLE_ORDER
+    const rows = tableOrderFor(b)
       .filter(k => TABLE_DEFS[k].contributes)
       .map(k => {
         const def = TABLE_DEFS[k];
@@ -530,7 +626,7 @@
       </table>
       ${deltaHtml}
     `;
-    TABLE_ORDER.forEach(updateTableSum);
+    tableOrderFor(b).forEach(updateTableSum);
   }
 
   function popupHtmlForPoint(point){
@@ -593,7 +689,7 @@
     const addBtn = document.getElementById('research-map-add-btn');
     if(researchMapMode && typeof researchMapMode === 'object' && researchMapMode.rowId){
       const b = getBoard();
-      const tk = CAT_TO_TABLE[researchMapMode.categoryKey];
+      const tk = isQuick(b) ? (researchMapMode.categoryKey === 'place' ? 'miejscowki' : 'koszty_mix') : CAT_TO_TABLE[researchMapMode.categoryKey];
       const row = tk && b ? (b.tables?.[tk] || []).find(r => r.id === researchMapMode.rowId) : null;
       const name = ((row && row.nazwa) || '').trim() || '(bez nazwy)';
       if(hint) hint.textContent = `Kliknij na mapie, aby ustawić pin dla „${name}".`;
@@ -659,9 +755,20 @@
   function openResearchRowPicker(categoryKey){
     const b = getBoard(); if(!b) return;
     ensureTables(b);
-    const tableKey = CAT_TO_TABLE[categoryKey];
+    let tableKey, rowFilter = null;
+    if(isQuick(b)){
+      if(categoryKey === 'place') tableKey = 'miejscowki';
+      else if(QUICK_TYPE_FROM_CAT[categoryKey]){
+        tableKey = 'koszty_mix';
+        const typ = QUICK_TYPE_FROM_CAT[categoryKey];
+        rowFilter = r => r.typ === typ;
+      }
+    } else {
+      tableKey = CAT_TO_TABLE[categoryKey];
+    }
     if(!tableKey) return;
-    const rows = b.tables[tableKey] || [];
+    let rows = b.tables[tableKey] || [];
+    if(rowFilter) rows = rows.filter(rowFilter);
     const color = catColor(categoryKey);
     const rowsHtml = rows.length ? rows.map(r => {
       const point = (b.points || []).find(p => p.id === r.id);
@@ -685,14 +792,17 @@
   function linkResearchPointFromMap(latlng, mode){
     if(!mode || typeof mode !== 'object') return;
     const { categoryKey, rowId } = mode;
-    const tableKey = CAT_TO_TABLE[categoryKey];
-    if(!tableKey || !rowId) return;
     const b = getBoard();
     if(!b) return;
     ensureTables(b);
+    const tableKey = isQuick(b)
+      ? (categoryKey === 'place' ? 'miejscowki' : (QUICK_TYPE_FROM_CAT[categoryKey] ? 'koszty_mix' : null))
+      : CAT_TO_TABLE[categoryKey];
+    if(!tableKey || !rowId) return;
     const row = (b.tables[tableKey] || []).find(r => r.id === rowId);
     if(!row) return;
-    let point = (b.points || []).find(p => p.id === rowId);
+    if(!Array.isArray(b.points)) b.points = [];
+    let point = b.points.find(p => p.id === rowId);
     if(!point){
       point = { id: rowId, name: row.nazwa || '', coords: null, categoryKey };
       b.points.push(point);
@@ -833,6 +943,79 @@
     renderInspirations();
   };
 
+  // ---------- Strony — linki do muzeów/atrakcji; przechodzą do podróży jako trip.tickets ----------
+  let siteFilter = '';
+
+  function renderSites(){
+    const b = getBoard();
+    const list = document.getElementById('rsite-list');
+    const filters = document.getElementById('rsite-filters');
+    if(!b || !list || !filters) return;
+    ensureTables(b);
+    const items = b.sites;
+    const kinds = [...new Set(items.map(i => (i.kind || '').trim()).filter(Boolean))].sort((x, y) => x.localeCompare(y, 'pl'));
+    if(siteFilter && !kinds.includes(siteFilter)) siteFilter = '';
+
+    const kindSlug = k => { const s = String(k || '').trim().toLowerCase(); return ['muzeum', 'atrakcja', 'restauracja', 'info'].includes(s) ? s : ''; };
+
+    filters.innerHTML = kinds.length > 1
+      ? [['', `Wszystkie (${items.length})`], ...kinds.map(k => [k, k])].map(([val, label]) =>
+          `<button type="button" class="inspo-filter site-kind${val === siteFilter ? ' active' : ''}" data-site-kind="${escapeAttr(kindSlug(val))}" data-kind="${escapeAttr(val)}" onclick="setResearchSiteFilter(this.dataset.kind)">${escapeHtml(label)}</button>`
+        ).join('')
+      : '';
+
+    if(!items.length){
+      list.innerHTML = `<p class="research-empty">Brak stron. Wklej link do muzeum lub atrakcji powyżej.</p>`;
+      return;
+    }
+    const shown = siteFilter ? items.filter(i => (i.kind || '').trim() === siteFilter) : items;
+    list.innerHTML = shown.slice().reverse().map(t => {
+      const label = platformOf(t.url).label;
+      return `<article class="inspo-card ticket-card" data-source="web" data-site-kind="${escapeAttr(kindSlug(t.kind))}">
+        <a class="inspo-thumb" href="${escapeAttr(t.url)}" target="_blank" rel="noopener noreferrer" tabindex="-1" aria-hidden="true"><span class="inspo-thumb-label">${escapeHtml(t.kind || label)}</span></a>
+        <div class="inspo-body">
+          <div class="inspo-meta">
+            <span class="inspo-platform">${escapeHtml(label)}</span>
+            ${t.kind ? `<span class="inspo-topic">${escapeHtml(t.kind)}</span>` : ''}
+          </div>
+          <a class="inspo-name" href="${escapeAttr(t.url)}" target="_blank" rel="noopener noreferrer">${escapeHtml(t.name || t.url)}</a>
+        </div>
+        <button type="button" class="inspo-remove" onclick="removeResearchSite('${escapeAttr(t.id)}')" aria-label="Usuń stronę">&times;</button>
+      </article>`;
+    }).join('');
+  }
+
+  window.addResearchSite = function(){
+    const b = getBoard();
+    if(!b) return;
+    ensureTables(b);
+    const nameEl = document.getElementById('rsite-name');
+    const kindEl = document.getElementById('rsite-kind');
+    const linkEl = document.getElementById('rsite-link');
+    const url = normalizeUrl(linkEl.value);
+    if(!url){ alert('Podaj poprawny link (http/https).'); linkEl.focus(); return; }
+    b.sites.push({ id: genId(), name: nameEl.value.trim(), kind: kindEl.value.trim(), url });
+    save();
+    nameEl.value = '';
+    linkEl.value = '';
+    renderSites();
+    nameEl.focus();
+  };
+
+  window.removeResearchSite = function(id){
+    const b = getBoard();
+    if(!b) return;
+    if(!confirm('Usunąć tę stronę?')) return;
+    b.sites = (b.sites || []).filter(i => i.id !== id);
+    save();
+    renderSites();
+  };
+
+  window.setResearchSiteFilter = function(kind){
+    siteFilter = kind || '';
+    renderSites();
+  };
+
   // ---------- Plan dni — ten sam model co w podróży (plan.days + dayMeta), ale bez dat ----------
   const RESEARCH_PLAN_CTX = {
     getHost: getBoard,
@@ -913,7 +1096,7 @@
   };
 
   window.setResearchBoardPanel = function(panel){
-    if(!['tables', 'map', 'plan', 'inspo', 'country'].includes(panel)) panel = 'tables';
+    if(!['tables', 'plan', 'inspo', 'sites', 'country'].includes(panel)) panel = 'tables';
     currentResearchPanel = panel;
     document.querySelectorAll('#research-board .research-board-panel').forEach(p => {
       p.hidden = p.dataset.panel !== panel;
@@ -925,17 +1108,54 @@
     const toolbar = document.getElementById('research-tables-toolbar');
     if(toolbar) toolbar.hidden = panel !== 'tables';
     if(panel === 'inspo') renderInspirations();
+    if(panel === 'sites') renderSites();
     if(panel === 'plan') renderResearchPlan();
     else if(typeof window.destroyPlanDayMap === 'function') window.destroyPlanDayMap();
     if(panel === 'country' && typeof window.renderCountrySheet === 'function') window.renderCountrySheet('research-country', getBoard, save);
-    if(panel === 'map'){
-      initResearchMap();
-    } else if(researchMap){
+    closeResearchMapModal();
+  };
+
+  // Mapa researchu otwiera się w oknie, jak mapa podróży (przycisk obok Kantoru).
+  function closeResearchMapModal(){
+    document.querySelectorAll('.research-map-backdrop').forEach(el => el.remove());
+    document.querySelectorAll('.tmm-picker-backdrop').forEach(el => el.remove());
+    if(researchMap){
       researchMap.remove();
       researchMap = null;
       researchMarkers = {};
     }
     researchMapMode = false;
+  }
+
+  window.openResearchMapModal = function(){
+    if(!getBoard()) return;
+    closeResearchMapModal();
+    const bd = document.createElement('div');
+    bd.className = 'plan-map-backdrop research-map-backdrop';
+    bd.innerHTML = `<div class="plan-map-card" role="dialog" aria-modal="true" aria-label="Mapa researchu">
+      <div class="pmm-head">
+        <h3>Mapa</h3>
+        <button type="button" class="pmm-close" aria-label="Wróć do tabel">×</button>
+      </div>
+      <div class="pmm-toolbar">
+        <span class="research-map-hint" id="research-map-hint"></span>
+        <button type="button" id="research-map-add-btn" class="tmm-add-btn" onclick="openResearchMapAddPicker()">＋ Dodaj</button>
+      </div>
+      <div class="pmm-map research-map-container" id="research-map-container"></div>
+    </div>`;
+    const onKey = e => {
+      if(e.key !== 'Escape' || document.querySelector('.tmm-picker-backdrop')) return;
+      close();
+    };
+    const close = () => {
+      document.removeEventListener('keydown', onKey);
+      closeResearchMapModal();
+    };
+    bd.addEventListener('click', e => { if(e.target === bd) close(); });
+    bd.querySelector('.pmm-close').addEventListener('click', close);
+    document.addEventListener('keydown', onKey);
+    document.body.appendChild(bd);
+    initResearchMap();
     updateMapToolButtons();
   };
 
@@ -955,7 +1175,7 @@
     ensureTables(b);
     const filteredTables = {};
     const keptIds = new Set();
-    TABLE_ORDER.forEach(k => {
+    tableOrderFor(b).forEach(k => {
       const def = TABLE_DEFS[k];
       const rows = b.tables[k] || [];
       const kept = def.checkable ? rows.filter(r => r.checked) : rows.slice();
@@ -987,12 +1207,14 @@
       boardId: b.id,
       name: b.name || '',
       budget: b.budget,
+      quick: !!b.quick,
       tables: filteredTables,
       tableNames: JSON.parse(JSON.stringify(b.tableNames || {})),
       planPoints: importedPoints,
       plan: { days: importedPlanDays },
       dayMeta: importedDayMeta,
-      countryInfo: JSON.parse(JSON.stringify(b.countryInfo || {}))
+      countryInfo: JSON.parse(JSON.stringify(b.countryInfo || {})),
+      tickets: JSON.parse(JSON.stringify(b.sites || []))
     };
     if(typeof window.showMainTab === 'function') window.showMainTab('add');
     const nameEl = document.getElementById('trip-name');

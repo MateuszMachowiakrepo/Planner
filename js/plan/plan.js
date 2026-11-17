@@ -158,7 +158,10 @@
             }
             document.querySelectorAll('.tmm-picker-backdrop').forEach(el => el.remove());
             const excludedFromMap = new Set(['city']);
-            const cats = allPointCategories(trip).filter(cat => !excludedFromMap.has(cat.key));
+            const QUICK_ALLOWED = new Set(['place', 'restaurant', 'attraction', 'apartment']);
+            const cats = allPointCategories(trip)
+                .filter(cat => !excludedFromMap.has(cat.key))
+                .filter(cat => trip.quick ? QUICK_ALLOWED.has(cat.key) : true);
             const rows = cats.map(cat => `<button type="button" class="tmm-picker-row" data-cat="${cat.key}" style="--cat:${cat.color};">
                 <span class="tmm-picker-dot" aria-hidden="true"></span>
                 <span class="tmm-picker-label">${htmlEsc(cat.title)}</span>
@@ -231,8 +234,19 @@
 
         function openTripMapRowPicker(categoryKey) {
             const trip = activeTripObj(); if (!trip) return;
-            const CAT_TO_TABLE = { attraction:'atrakcje', restaurant:'restauracje', place:'miejscowki', apartment:'apartamenty' };
-            const tableKey = CAT_TO_TABLE[categoryKey];
+            const QUICK_CAT_TO_TYP = { attraction: 'atrakcja', restaurant: 'restauracja', apartment: 'apartament' };
+            let tableKey, rowFilter = null;
+            if (trip.quick) {
+                if (categoryKey === 'place') tableKey = 'miejscowki';
+                else if (QUICK_CAT_TO_TYP[categoryKey]) {
+                    tableKey = 'koszty_mix';
+                    const typ = QUICK_CAT_TO_TYP[categoryKey];
+                    rowFilter = r => r.typ === typ;
+                }
+            } else {
+                const CAT_TO_TABLE = { attraction:'atrakcje', restaurant:'restauracje', place:'miejscowki', apartment:'apartamenty' };
+                tableKey = CAT_TO_TABLE[categoryKey];
+            }
             if (!tableKey) {
                 // Non-table-backed category (e.g. city) — fall back to legacy click mode.
                 planMapClickMode = categoryKey;
@@ -240,7 +254,8 @@
                 return;
             }
             const cat = categoryByKey(trip, categoryKey);
-            const tableRows = (trip.tables && trip.tables[tableKey]) || [];
+            let tableRows = (trip.tables && trip.tables[tableKey]) || [];
+            if (rowFilter) tableRows = tableRows.filter(rowFilter);
             const rowsHtml = tableRows.length ? tableRows.map(r => {
                 const point = (trip.planPoints || []).find(p => p.id === r.id);
                 const hasCoords = !!(point && point.coords && point.coords.length === 2);

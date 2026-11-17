@@ -20,6 +20,12 @@
     try { const u = new URL(withProto); return /^https?:$/.test(u.protocol) ? u.href : ''; } catch(e){ return ''; }
   }
 
+  // Kategorie: Muzeum / Atrakcja / Restauracja / Info — kolory w CSS po [data-site-kind].
+  function kindSlug(k){
+    const s = String(k || '').trim().toLowerCase();
+    return ['muzeum', 'atrakcja', 'restauracja', 'info'].includes(s) ? s : '';
+  }
+
   function ensureSites(trip){
     if(trip && !Array.isArray(trip.tickets)) trip.tickets = [];
   }
@@ -47,12 +53,9 @@
     const kinds = [...new Set(items.map(i => (i.kind || '').trim()).filter(Boolean))].sort((x, y) => x.localeCompare(y, 'pl'));
     if(siteFilter && !kinds.includes(siteFilter)) siteFilter = '';
 
-    const dl = document.getElementById('ticket-kinds');
-    if(dl) dl.innerHTML = kinds.map(k => `<option value="${escapeAttr(k)}"></option>`).join('');
-
     filters.innerHTML = kinds.length > 1
       ? [['', `Wszystkie (${items.length})`], ...kinds.map(k => [k, k])].map(([val, label]) =>
-          `<button type="button" class="inspo-filter${val === siteFilter ? ' active' : ''}" data-kind="${escapeAttr(val)}" onclick="setTripTicketFilter(this.dataset.kind)">${escapeHtml(label)}</button>`
+          `<button type="button" class="inspo-filter site-kind${val === siteFilter ? ' active' : ''}" data-site-kind="${escapeAttr(kindSlug(val))}" data-kind="${escapeAttr(val)}" onclick="setTripTicketFilter(this.dataset.kind)">${escapeHtml(label)}</button>`
         ).join('')
       : '';
 
@@ -67,7 +70,7 @@
       const media = src.key === 'image'
         ? `<img src="${escapeAttr(href)}" alt="" loading="lazy">`
         : `<span class="inspo-thumb-label">${escapeHtml(t.kind || src.label)}</span>`;
-      return `<article class="inspo-card ticket-card" data-source="${src.key}">
+      return `<article class="inspo-card ticket-card" data-source="${src.key}" data-site-kind="${escapeAttr(kindSlug(t.kind))}">
         <a class="inspo-thumb" href="${escapeAttr(href)}" target="_blank" rel="noopener noreferrer" tabindex="-1" aria-hidden="true">${media}</a>
         <div class="inspo-body">
           <div class="inspo-meta">

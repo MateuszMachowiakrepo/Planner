@@ -1622,6 +1622,7 @@
         .plan-map-card .pmm-close { width: 34px; height: 34px; border-radius: 9px; border: 1px solid var(--border-mid); background: transparent; cursor: pointer; font-size: 1rem; color: var(--ink-muted); transition: color .15s, border-color .15s; }
         .plan-map-card .pmm-close:hover { color: var(--ink); border-color: var(--ink-muted); }
         .plan-map-card .pmm-map { margin: 14px 20px; height: min(58vh, 460px); border-radius: 14px; border: 1px solid var(--border-mid); overflow: hidden; background: #f1f5f9; }
+        .plan-map-card .pmm-map.research-map-container { height: min(58vh, 460px); }
 
         /* ══ Plan: mapa ogólna ═════════════════════════════════════════════════ */
         .pg-map { height: min(50vh, 420px); border-radius: 14px; border: 1px solid var(--border-mid); overflow: hidden; background: #f1f5f9; }
@@ -2698,7 +2699,7 @@
 
         .tdv-body {
             display: grid;
-            grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr);
+            grid-template-columns: minmax(320px, 440px) minmax(0, 1fr);
             gap: 16px;
             align-items: start;
         }
@@ -2760,7 +2761,7 @@
 
         /* ── Pasek trasy nad mapą dnia ── */
         .tdv-route-bar {
-            display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+            display: flex; align-items: center; justify-content: flex-end; gap: 10px; flex-wrap: wrap;
             margin-bottom: 8px;
         }
         .tdv-route-switch {
@@ -2798,16 +2799,46 @@
         .tdv-item {
             display: grid;
             grid-template-columns: 22px 32px 1fr auto;
-            gap: 12px;
+            gap: 8px;
             align-items: center;
-            padding: 10px 14px;
+            padding: 6px 10px;
             border: 1px solid var(--border);
             border-radius: var(--radius-lg);
             background: var(--card);
             border-left: 4px solid var(--rsc-accent, var(--primary));
+            cursor: pointer;
+            box-shadow: 0 1px 0 rgba(255, 255, 255, 0.05) inset, 0 2px 4px rgba(0, 0, 0, 0.18);
+            transition: transform 0.16s cubic-bezier(.2,.8,.3,1), box-shadow 0.16s ease, background 0.16s ease, border-color 0.16s ease;
+            will-change: transform;
+        }
+        /* „Przycisk" 3D: po najechaniu unosi się i świeci akcentem, po naciśnięciu wciska się. */
+        .tdv-item:not(.tdv-item-missing):hover {
+            transform: translateY(-4px) scale(1.025);
+            background: color-mix(in srgb, var(--rsc-accent, var(--primary)) 9%, var(--card));
+            border-color: color-mix(in srgb, var(--rsc-accent, var(--primary)) 55%, var(--border));
+            box-shadow:
+                0 1px 0 rgba(255, 255, 255, 0.12) inset,
+                0 14px 26px rgba(0, 0, 0, 0.38),
+                0 0 0 1px color-mix(in srgb, var(--rsc-accent, var(--primary)) 45%, transparent),
+                0 0 18px color-mix(in srgb, var(--rsc-accent, var(--primary)) 35%, transparent);
+        }
+        .tdv-item:not(.tdv-item-missing):active {
+            transform: translateY(1px) scale(0.97);
+            transition-duration: 0.06s;
+            box-shadow: 0 1px 0 rgba(0, 0, 0, 0.3) inset, 0 1px 3px rgba(0, 0, 0, 0.35);
+        }
+        .tdv-item.tdv-item-active {
+            border-color: var(--rsc-accent, var(--primary));
+            background: color-mix(in srgb, var(--rsc-accent, var(--primary)) 14%, var(--card));
+        }
+        .tdv-item-hours {
+            font-family: var(--font-sans);
+            font-size: 0.74rem;
+            color: var(--ink-mid);
+            margin-top: 2px;
         }
         .tdv-item-num {
-            width: 26px; height: 26px;
+            width: 22px; height: 22px;
             border-radius: 50%;
             background: var(--rsc-accent, var(--primary));
             color: #fff;
@@ -2877,7 +2908,7 @@
             text-transform: none;
             letter-spacing: normal;
         }
-        .tdv-duration-field input[type="text"] { min-width: 130px; }
+        .tdv-duration-field input[type="text"] { min-width: 0; width: 120px; }
         .tdv-time-toggle {
             margin-left: auto;
             padding: 3px 10px;
@@ -2939,6 +2970,8 @@
         }
         .tdv-travel-time { max-width: 130px; flex: 0 0 auto; }
         .tdv-travel-mode { flex: 1; max-width: 320px; }
+        .tdv-travel-route { width: auto; flex: 0 0 auto; cursor: pointer; }
+        .tdv-route-default { align-self: center; padding: 0 6px; font-size: 0.75rem; color: var(--ink-muted); white-space: nowrap; }
         .tdv-picker-stepper {
             display: inline-flex; align-items: center; gap: 4px;
         }
@@ -3023,7 +3056,8 @@
         }
         .tdv-map {
             width: 100%;
-            height: 480px;
+            height: min(680px, calc(100vh - 150px));
+            min-height: 480px;
             border-radius: var(--radius-lg);
             border: 1px solid var(--border);
             overflow: hidden;
@@ -3644,6 +3678,7 @@
             --rsc-atrakcje:    #d97706;
             --rsc-restauracje: #9c6a3d;
             --rsc-miejscowki:  #6b4c9a;
+            --rsc-quick:       #2563eb;
         }
         .research-theme-koszty      { --rsc-accent: var(--rsc-koszty); }
         .research-theme-loty        { --rsc-accent: var(--rsc-loty); }
@@ -3651,6 +3686,85 @@
         .research-theme-atrakcje    { --rsc-accent: var(--rsc-atrakcje); }
         .research-theme-restauracje { --rsc-accent: var(--rsc-restauracje); }
         .research-theme-miejscowki  { --rsc-accent: var(--rsc-miejscowki); }
+        .research-theme-koszty_mix  { --rsc-accent: var(--rsc-koszty); }
+
+        /* Kolory wierszy w tabeli „Koszty" dla szybkiej podróży — pasek z lewej per typ. */
+        .research-table tr.koszty-mix-row[data-typ] {
+            box-shadow: inset 6px 0 0 0 var(--rsc-typ, transparent);
+        }
+        .research-table tr.koszty-mix-row[data-typ="koszt"]        { --rsc-typ: var(--rsc-koszty); background: color-mix(in srgb, var(--rsc-koszty) 28%, transparent); }
+        .research-table tr.koszty-mix-row[data-typ="apartament"]   { --rsc-typ: var(--rsc-apartamenty); background: color-mix(in srgb, var(--rsc-apartamenty) 28%, transparent); }
+        .research-table tr.koszty-mix-row[data-typ="transport"]    { --rsc-typ: var(--rsc-loty); background: color-mix(in srgb, var(--rsc-loty) 28%, transparent); }
+        .research-table tr.koszty-mix-row[data-typ="restauracja"]  { --rsc-typ: var(--rsc-restauracje); background: color-mix(in srgb, var(--rsc-restauracje) 30%, transparent); }
+        .research-table tr.koszty-mix-row[data-typ="atrakcja"]     { --rsc-typ: var(--rsc-atrakcje); background: color-mix(in srgb, var(--rsc-atrakcje) 30%, transparent); }
+
+        /* Zakładki ukryte dla szybkiej podróży. */
+        #board-plan-tab[data-quick-mode="true"] [data-quick-hide] { display: none !important; }
+
+        /* Przełącznik „Szybka podróż" w formularzu nowej podróży. */
+        .trip-quick-toggle {
+            display: flex;
+            align-items: flex-start;
+            gap: 12px;
+            padding: 14px 16px;
+            margin-bottom: 18px;
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            background: var(--bg-soft, var(--bg));
+            cursor: pointer;
+        }
+        .trip-quick-toggle input[type="checkbox"] {
+            margin-top: 3px;
+            width: 18px;
+            height: 18px;
+            flex-shrink: 0;
+        }
+        .trip-quick-text { display: flex; flex-direction: column; gap: 2px; }
+        .trip-quick-name { font-weight: 600; color: var(--ink); }
+        .trip-quick-desc { font-size: 0.88rem; color: var(--ink-muted); }
+
+        /* Lekki tint kart szybkiej podróży — zarówno lista podróży, jak i hub researchu. */
+        .trip-card.trip-card-quick,
+        .research-hub-item.research-hub-item-quick {
+            background: color-mix(in srgb, var(--rsc-quick) 7%, var(--card, var(--bg)));
+            border-left: 3px solid var(--rsc-quick);
+        }
+        .trip-card-tag-quick {
+            background: color-mix(in srgb, var(--rsc-quick) 18%, transparent);
+            color: var(--rsc-quick);
+            border: 1px solid color-mix(in srgb, var(--rsc-quick) 35%, transparent);
+        }
+        .research-hub-item-tag {
+            display: inline-block;
+            margin-left: 8px;
+            padding: 2px 8px;
+            font-size: 0.72rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+            background: color-mix(in srgb, var(--rsc-quick) 18%, transparent);
+            color: var(--rsc-quick);
+            border-radius: 999px;
+            vertical-align: middle;
+        }
+        .research-quick-chip {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 4px 10px;
+            font-size: 0.85rem;
+            color: var(--ink);
+            border: 1px solid var(--border);
+            border-radius: 999px;
+            cursor: pointer;
+            user-select: none;
+        }
+        .research-quick-chip input { margin: 0; width: 14px; height: 14px; }
+        .research-quick-chip:has(input:checked) {
+            background: color-mix(in srgb, var(--rsc-quick) 12%, transparent);
+            border-color: color-mix(in srgb, var(--rsc-quick) 40%, transparent);
+            color: var(--rsc-quick);
+        }
 
         .research-kicker {
             font-family: var(--font-sans);
@@ -3962,6 +4076,27 @@
         .ticket-card[data-source="pdf"]   { --inspo-accent: #c0392b; }
         .ticket-card[data-source="image"] { --inspo-accent: #2e7d5b; }
         .ticket-card[data-source="web"]   { --inspo-accent: var(--primary); }
+        /* Kategorie stron — każda ma swój kolor (kafelek i przycisk filtra) */
+        :root {
+            --site-muzeum: #7c3aed;
+            --site-atrakcja: #d97706;
+            --site-restauracja: #dc2626;
+            --site-info: #0284c7;
+        }
+        [data-site-kind="muzeum"]      { --site-accent: var(--site-muzeum); }
+        [data-site-kind="atrakcja"]    { --site-accent: var(--site-atrakcja); }
+        [data-site-kind="restauracja"] { --site-accent: var(--site-restauracja); }
+        [data-site-kind="info"]        { --site-accent: var(--site-info); }
+        .ticket-card[data-site-kind="muzeum"],
+        .ticket-card[data-site-kind="atrakcja"],
+        .ticket-card[data-site-kind="restauracja"],
+        .ticket-card[data-site-kind="info"] { --inspo-accent: var(--site-accent); }
+        .ticket-card[data-site-kind]:not([data-site-kind=""]) .inspo-topic {
+            background: color-mix(in srgb, var(--site-accent) 14%, var(--surface));
+            color: var(--site-accent); font-weight: 600;
+        }
+        .inspo-filter.site-kind[data-site-kind]:not([data-site-kind=""]) { border-color: color-mix(in srgb, var(--site-accent) 55%, var(--border)); color: var(--site-accent); }
+        .inspo-filter.site-kind.active[data-site-kind]:not([data-site-kind=""]) { background: var(--site-accent); border-color: var(--site-accent); color: #fff; }
 
         /* ---------- O kraju (ściągawka) ---------- */
         .country-sheet { display: flex; flex-direction: column; gap: 22px; }
@@ -4125,7 +4260,6 @@
         }
         .research-table tbody tr:last-child td { border-bottom: none; }
         .research-table tbody td:last-child { border-right: none; }
-        .research-table tbody tr:hover td { background: color-mix(in srgb, var(--rsc-accent) 4%, var(--card)); }
 
         .research-check-col {
             width: 34px;
@@ -4223,13 +4357,17 @@
             --tr-lot:      #2a6496;
             --tr-samochod: #0f766e;
             --tr-pociag:   #b45309;
+            --tr-inne:     #b1b779;
         }
+        .tr-mode-inne     { --rsc-accent: var(--tr-inne); }
         .tr-mode-lot      { --rsc-accent: var(--tr-lot); }
         .tr-mode-samochod { --rsc-accent: var(--tr-samochod); }
         .tr-mode-pociag   { --rsc-accent: var(--tr-pociag); }
         .research-table tr.tr-row td { background: color-mix(in srgb, var(--rsc-accent) 6%, var(--card)); }
         .research-table tr.tr-row td:first-child { box-shadow: inset 4px 0 0 var(--rsc-accent); }
         .research-table tr.tr-row .research-check { accent-color: var(--rsc-accent); }
+        .tr-mode-select { width: 100%; font-weight: 600; color: var(--rsc-accent); }
+        .tr-kind-input { margin-top: 4px; width: 100%; }
         .tr-cell-na { color: var(--ink-muted); text-align: center; }
         .tr-cell-date, .tr-cell-time { min-width: 0; font-variant-numeric: tabular-nums; }
         .research-cell-textarea::placeholder { color: var(--ink-muted); opacity: 0.6; }
@@ -4258,6 +4396,7 @@
         .tr-mode-chip.active[data-mode="lot"]      { background: var(--tr-lot); }
         .tr-mode-chip.active[data-mode="samochod"] { background: var(--tr-samochod); }
         .tr-mode-chip.active[data-mode="pociag"]   { background: var(--tr-pociag); }
+        .tr-mode-chip.active[data-mode="inne"]     { background: var(--tr-inne); }
         .tr-layover {
             margin-left: 8px;
             font-family: var(--font-sans); font-size: 0.74rem; font-weight: 600;

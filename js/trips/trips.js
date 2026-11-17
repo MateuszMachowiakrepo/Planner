@@ -79,6 +79,12 @@
             const trip = window.trips.find(t => t.id === tripId);
             if (!trip) return;
             document.getElementById('plan-trip-title').innerText = trip.name;
+            const board = document.getElementById('board-plan-tab');
+            if(board) board.dataset.quickMode = trip.quick ? 'true' : 'false';
+            if(trip.quick){
+                const panel = loadTripViewPanel();
+                if(panel === 'tickets' || panel === 'country') saveTripViewPanel('tables');
+            }
             window.showMainTab('board-plan');
             renderTripBoard();
         };
@@ -106,8 +112,9 @@ function renderTripItem(trip, archived = false) {
     const days = calculateDays(trip.startDate, trip.endDate);
     const daysLabel = `${days} ${days === 1 ? 'dzień' : (days < 5 ? 'dni' : 'dni')}`;
     const origin = archived ? 'archive' : 'list';
+    const quickCls = trip.quick ? ' trip-card-quick' : '';
     return `
-        <div class="trip-card${archived ? ' trip-card-archived' : ''}" role="button" tabindex="0" onclick="openTripBoard('${trip.id}','${origin}')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openTripBoard('${trip.id}','${origin}');}">
+        <div class="trip-card${archived ? ' trip-card-archived' : ''}${quickCls}" role="button" tabindex="0" onclick="openTripBoard('${trip.id}','${origin}')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openTripBoard('${trip.id}','${origin}');}">
             <div class="trip-card-main">
                 <div class="trip-card-name">${htmlEsc(trip.name)}</div>
                 <div class="trip-card-dest">${htmlEsc(trip.destination || '')}</div>
@@ -115,6 +122,7 @@ function renderTripItem(trip, archived = false) {
             <div class="trip-card-meta">
                 <span class="trip-card-dates">${formatDate(trip.startDate)} — ${formatDate(trip.endDate)}</span>
                 <span class="trip-card-days">${daysLabel}</span>
+                ${trip.quick ? '<span class="trip-card-tag trip-card-tag-quick">Szybka</span>' : ''}
                 ${archived ? '<span class="trip-card-tag">Archiwum</span>' : ''}
             </div>
             <div class="trip-card-actions" onclick="event.stopPropagation()">
@@ -168,6 +176,8 @@ function renderTripItem(trip, archived = false) {
     tableNames: existingTrip ? (existingTrip.tableNames || {}) : (imp ? imp.tableNames : {}),
     tripBudget: existingTrip ? (existingTrip.tripBudget != null ? existingTrip.tripBudget : '') : (imp && imp.budget != null ? imp.budget : ''),
     countryInfo: existingTrip ? (existingTrip.countryInfo || {}) : (imp && imp.countryInfo ? imp.countryInfo : {}),
+    tickets: existingTrip ? (existingTrip.tickets || []) : (imp && Array.isArray(imp.tickets) ? imp.tickets : []),
+    quick: existingTrip ? !!existingTrip.quick : (document.getElementById('trip-quick').checked || !!(imp && imp.quick)),
 };
     if (imp) window.pendingResearchImport = null;
 
@@ -199,6 +209,7 @@ function renderTripItem(trip, archived = false) {
             document.getElementById('budget').value = trip.budget || ''; document.getElementById('travelers').value = trip.travelers;
             document.getElementById('trip-type').value = trip.type; document.getElementById('transport').value = trip.transport;
             document.getElementById('notes').value = trip.notes || '';
+            document.getElementById('trip-quick').checked = !!trip.quick;
             window.showMainTab('add'); document.querySelector('#trip-form button').textContent = 'Zaktualizuj podróż';
         }
 

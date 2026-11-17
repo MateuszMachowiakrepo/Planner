@@ -108,7 +108,8 @@
       const t = timeLabel(it);
       const loc = info.row.lokalizacja || info.row.miejsce || '';
       const isLast = idx === items.length - 1;
-      const travel = [it.travelToNext, it.travelMode].filter(Boolean).join(' · ');
+      const mode = RouteLines.PROFILES[it.routeMode];
+      const travel = [it.travelToNext, mode ? `${mode.icon} ${mode.label}` : ''].filter(Boolean).join(' · ');
       return `<li class="tqv-step research-theme-${info.tableKey}">
         <span class="tqv-num">${idx + 1}</span>
         <div class="tqv-step-body">
@@ -151,9 +152,11 @@
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '© OpenStreetMap contributors', maxZoom: 19 }).addTo(qvMap);
     const css = getComputedStyle(document.documentElement);
     const coords = [];
+    const coordItems = [];
     items.forEach((it, idx) => {
       const point = findPoint(trip, it.rowId);
       if(!point || !point.coords || point.coords.length !== 2) return;
+      coordItems.push(it);
       const info = findRow(trip, it.rowId);
       const color = info ? (info.color || css.getPropertyValue('--rsc-' + info.tableKey).trim()) : '#333';
       const icon = L.divIcon({ html: `<div class="tdv-pin" style="background:${color};">${idx + 1}</div>`, className: 'tdv-pin-wrap', iconSize: [28, 28], iconAnchor: [14, 14] });
@@ -162,7 +165,8 @@
     });
     if(coords.length >= 2){
       const meta = trip.dayMeta && qvState && trip.dayMeta[qvState.day];
-      RouteLines.draw(qvMap, coords, { profile: meta && meta.routeMode });
+      const segs = coords.slice(0, -1).map((c, k) => ({ from: c, to: coords[k + 1], profile: coordItems[k].routeMode || (meta && meta.routeMode) }));
+      RouteLines.drawSegments(qvMap, segs);
       qvMap.fitBounds(L.latLngBounds(coords), { padding: [30, 30] });
     } else if(coords.length === 1){
       qvMap.setView(coords[0], 14);

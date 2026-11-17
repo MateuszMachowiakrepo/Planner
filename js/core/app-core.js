@@ -18,7 +18,7 @@
 
             if (typeof window.closeStrayPointPanels === 'function') window.closeStrayPointPanels();
 
-            const mainTabs = ['home', 'add', 'list', 'archive', 'stats', 'tools', 'research'];
+            const mainTabs = ['home', 'add', 'list', 'archive', 'stats', 'research'];
             if (mainTabs.includes(tabName)) {
                 currentActiveTripId = null;
             }
@@ -50,7 +50,7 @@
                 return true;
             }
 
-            const mainTabs = ['add', 'list', 'archive', 'stats', 'tools', 'research'];
+            const mainTabs = ['add', 'list', 'archive', 'stats', 'research'];
             if (mainTabs.includes(saved.tab)) {
                 window.showMainTab(saved.tab);
                 return true;

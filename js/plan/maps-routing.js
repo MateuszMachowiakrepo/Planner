@@ -126,8 +126,10 @@
                 const { categoryKey, rowId } = mode;
                 if (!Array.isArray(trip.planPoints)) trip.planPoints = [];
                 let point = trip.planPoints.find(p => p.id === rowId);
-                const CAT_TO_TABLE = { attraction:'atrakcje', restaurant:'restauracje', place:'miejscowki', apartment:'apartamenty' };
-                const tk = CAT_TO_TABLE[categoryKey];
+                const CAT_TO_TABLE_FULL = { attraction:'atrakcje', restaurant:'restauracje', place:'miejscowki', apartment:'apartamenty' };
+                const CAT_TO_TABLE_QUICK = { attraction:'koszty_mix', restaurant:'koszty_mix', apartment:'koszty_mix', place:'miejscowki' };
+                const map = trip.quick ? CAT_TO_TABLE_QUICK : CAT_TO_TABLE_FULL;
+                const tk = map[categoryKey];
                 const row = tk ? ((trip.tables && trip.tables[tk]) || []).find(r => r.id === rowId) : null;
                 if (!point) {
                     point = { id: rowId, name: (row && row.nazwa) || '', coords: null, categoryKey, cols: {}, comments: [], done: false, baseCardId: null };

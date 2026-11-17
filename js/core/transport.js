@@ -6,17 +6,19 @@
   const MODES = {
     lot:      { label: 'Lot', depart: 'Wylot',  arrive: 'Przylot',  company: 'Linia lotnicza',       leg: '+ Przesiadka', transfer: true },
     samochod: { label: 'Samochód', depart: 'Wyjazd', arrive: 'Przyjazd', company: 'Auto / wypożyczalnia', leg: '+ Etap',       transfer: false },
-    pociag:   { label: 'Pociąg / bus', depart: 'Odjazd', arrive: 'Przyjazd', company: 'Przewoźnik',           leg: '+ Przesiadka', transfer: true }
+    pociag:   { label: 'Pociąg / bus', depart: 'Odjazd', arrive: 'Przyjazd', company: 'Przewoźnik',           leg: '+ Przesiadka', transfer: true },
+    inne:     { label: 'Inne', depart: 'Godzina odjazdu', arrive: 'Godzina przyjazdu', company: 'Przewoźnik', leg: '+ Przesiadka', transfer: true }
   };
-  const MODE_ORDER = ['lot', 'samochod', 'pociag'];
+  const MODE_ORDER = ['lot', 'samochod', 'pociag', 'inne'];
 
   const COLUMNS = [
+    { key: 'rodzaj', label: 'Rodzaj transportu', modeCell: true },
     { key: 'kierunek', label: 'Kierunek' },
     { key: 'data', label: 'Data', type: 'date' },
     { key: 'przylot', label: 'Wyjazd', type: 'time' },
     { key: 'wylot', label: 'Przyjazd', type: 'time' },
     { key: 'czyPrzesiadka', label: 'Przesiadka', type: 'yesno', transferOnly: true },
-    { key: 'linia', label: 'Firma' },
+    { key: 'linia', label: 'Firma', hideModes: ['inne'] },
     { key: 'cena', label: 'Cena', type: 'number', money: true }
   ];
 
@@ -32,7 +34,12 @@
     if(col.key === 'czyPrzesiadka') return 'Czy przesiadka';
     return col.label;
   }
-  function showsCol(col, mode){ return !col.transferOnly || MODES[modeKey(mode)].transfer; }
+  function showsCol(col, mode){
+    const k = modeKey(mode);
+    if(col.onlyModes && !col.onlyModes.includes(k)) return false;
+    if(col.hideModes && col.hideModes.includes(k)) return false;
+    return !col.transferOnly || MODES[k].transfer;
+  }
 
   function isTime(v){ return /^\d{1,2}:\d{2}$/.test(String(v || '').trim()); }
   function isDate(v){ return /^\d{4}-\d{2}-\d{2}$/.test(String(v || '').trim()); }
@@ -55,16 +62,19 @@
     return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
   }
 
-  // Wiersz-nagłówek grupy: przełącznik środka transportu. setFn(groupId, mode) zmienia tryb.
-  function groupHeadHtml(groupId, mode, colspan, setFn, removeFn){
+  // Tryb konkretnego wiersza: własny, a dla starych wierszy — tryb pierwszego wiersza grupy.
+  function rowMode(row, group){
+    return modeKey(row.mode || (group && group[0] && group[0].mode));
+  }
+
+  // Komórka „Rodzaj transportu": lista rozwijana + (dla „Inne") pole na własny rodzaj, np. prom, taxi.
+  function modeCellHtml(row, mode, setFn, textFn){
     mode = modeKey(mode);
-    const chips = MODE_ORDER.map(k => {
-      const m = MODES[k];
-      return `<button type="button" class="tr-mode-chip${k === mode ? ' active' : ''}" data-mode="${k}" aria-pressed="${k === mode}" onclick="${setFn}('${groupId}','${k}')">${m.label}</button>`;
-    }).join('');
-    return `<tr class="tr-group-head tr-mode-${mode}"><td colspan="${colspan}">
-      <div class="tr-group-head-inner"><div class="tr-mode-switch" role="group" aria-label="Środek transportu">${chips}</div></div>
-    </td></tr>`;
+    const opts = MODE_ORDER.map(k => `<option value="${k}"${k === mode ? ' selected' : ''}>${MODES[k].label}</option>`).join('');
+    const extra = mode === 'inne'
+      ? `<input class="research-cell-input tr-kind-input" type="text" placeholder="np. prom, taxi" value="${esc(row.rodzaj)}" oninput="${textFn}">`
+      : '';
+    return `<select class="research-cell-select tr-mode-select" aria-label="Rodzaj transportu" onchange="${setFn}">${opts}</select>${extra}`;
   }
 
   function connectorHtml(prev, next, mode, colspan){
@@ -74,13 +84,6 @@
     const word = MODES[mode].transfer ? 'Przesiadka' : 'Postój';
     const info = wait || legacy;
     return `<tr class="research-row-arrow tr-mode-${mode}"><td colspan="${colspan}"><span class="arrow-marker">↓</span>${info ? `<span class="tr-layover">${word} · ${esc(info)}</span>` : ''}</td></tr>`;
-  }
-
-  function groupEndHtml(groupId, mode, colspan, addLegFn){
-    mode = modeKey(mode);
-    return `<tr class="research-row-groupend tr-mode-${mode}"><td colspan="${colspan}">
-      <button type="button" class="research-mini-btn" onclick="${addLegFn}('${groupId}')">${MODES[mode].leg}</button>
-    </td></tr>`;
   }
 
   // Pole komórki dla kolumn date/time; null = niech wywołujący wyrenderuje zwykłe pole.
@@ -101,13 +104,14 @@
     const row = { id: genId(), checked: false, groupId: prev.groupId || prev.id, mode: modeKey(prev.mode) };
     COLUMNS.forEach(c => row[c.key] = '');
     row.data = prev.data || '';
+    if(row.mode === 'inne') row.rodzaj = prev.rodzaj || '';
     return row;
   }
 
   window.Transport = {
     MODES, MODE_ORDER, COLUMNS,
     modeKey, modeOf, colLabel, showsCol, layover,
-    groupHeadHtml, connectorHtml, groupEndHtml, specialInputHtml, newLeg,
+    rowMode, modeCellHtml, connectorHtml, specialInputHtml, newLeg,
     TITLE: 'Transport', LEGACY_TITLE: 'Loty'
   };
 })();

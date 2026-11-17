@@ -1,16 +1,18 @@
 (function(){
-  const DAY_TABLES = ['atrakcje', 'restauracje', 'miejscowki'];
+  const DAY_TABLES = ['atrakcje', 'restauracje', 'miejscowki', 'apartamenty'];
 
   const TABLE_LABEL = {
     atrakcje: 'Atrakcje',
     restauracje: 'Restauracje',
-    miejscowki: 'Miejscówki'
+    miejscowki: 'Miejscówki',
+    apartamenty: 'Apartamenty'
   };
 
   const TABLE_COLOR = {
     atrakcje: 'var(--rsc-atrakcje)',
     restauracje: 'var(--rsc-restauracje)',
-    miejscowki: 'var(--rsc-miejscowki)'
+    miejscowki: 'var(--rsc-miejscowki)',
+    apartamenty: 'var(--rsc-apartamenty)'
   };
 
   function escapeHtml(s){
@@ -61,6 +63,7 @@
       if(typeof it.travelToNext !== 'string') it.travelToNext = '';
       if(typeof it.travelMode !== 'string') it.travelMode = '';
       if(typeof it.duration !== 'string') it.duration = '';
+      if(it.routeMode && !RouteLines.PROFILES[it.routeMode]) it.routeMode = '';
       if(it.timeMode !== 'hours' && it.timeMode !== 'duration') it.timeMode = 'hours';
     });
     return trip.plan.days[day];
@@ -68,7 +71,7 @@
 
   // Punkty postawione na mapie przed powiązaniem z tabelami nie mają wiersza — kolor i etykietę
   // biorą wtedy z kategorii punktu, a jako „wiersz" służy sam punkt.
-  const CAT_TO_DAY_TABLE = { attraction: 'atrakcje', restaurant: 'restauracje', place: 'miejscowki' };
+  const CAT_TO_DAY_TABLE = { attraction: 'atrakcje', restaurant: 'restauracje', place: 'miejscowki', apartment: 'apartamenty' };
 
   function isTableRow(trip, id){
     return Object.values(trip.tables || {}).some(rows => Array.isArray(rows) && rows.some(r => r.id === id));
@@ -191,6 +194,20 @@
     return RouteLines.profileKey(t && t.dayMeta && t.dayMeta[day] && t.dayMeta[day].routeMode);
   }
 
+  // Sposób dotarcia do następnego punktu: własny wybór albo domyślny dla dnia.
+  function legProfileOf(t, day, it){
+    return it && RouteLines.PROFILES[it.routeMode] ? it.routeMode : routeProfileOf(t, day);
+  }
+
+  window.setTripDayItemRouteMode = function(day, itemId, mode){
+    const t = getTrip(); if(!t) return;
+    const it = ensureDay(t, day).items.find(i => i.id === itemId);
+    if(!it) return;
+    it.routeMode = RouteLines.PROFILES[mode] ? mode : '';
+    save();
+    buildTripDayMap(day);
+  };
+
   window.setTripDayRouteMode = function(day, mode){
     const t = getTrip(); if(!t) return;
     if(!t.dayMeta || typeof t.dayMeta !== 'object') t.dayMeta = {};
@@ -291,9 +308,9 @@
         candidates.push({ rowId: r.id, tableKey: k, name: (r.nazwa || '').trim() || '(bez nazwy)', coords });
       });
     });
-    // stare punkty z mapy (bez wiersza w tabelach, poza apartamentami)
+    // stare punkty z mapy (bez wiersza w tabelach)
     (t.planPoints || t.points || []).forEach(p => {
-      if(!p.coords || p.coords.length !== 2 || p.categoryKey === 'apartment' || isTableRow(t, p.id)) return;
+      if(!p.coords || p.coords.length !== 2 || isTableRow(t, p.id)) return;
       const info = findRow(t, p.id);
       candidates.push({ rowId: p.id, tableKey: info.tableKey, name: (p.name || '').trim() || '(bez nazwy)', coords: p.coords, label: info.label });
     });
@@ -546,6 +563,7 @@
 
   let tdvMap = null;
   let tdvMarkers = [];
+  let tdvMarkerById = {};
 
   function destroyDayMap(){
     if(tdvMap){ tdvMap.remove(); tdvMap = null; tdvMarkers = []; }
@@ -560,6 +578,7 @@
     const d = ensureDay(t, day);
 
     if(tdvMap){ tdvMap.remove(); tdvMap = null; tdvMarkers = []; }
+    tdvMarkerById = {};
     tdvMap = L.map(container).setView([20, 0], 2);
     const map = tdvMap;
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '© OpenStreetMap contributors', maxZoom: 19 }).addTo(tdvMap);
@@ -576,40 +595,28 @@
       const icon = L.divIcon({ html, className: 'tdv-pin-wrap', iconSize: [28, 28], iconAnchor: [14, 14] });
       const marker = L.marker(point.coords, { icon }).addTo(tdvMap);
       const name = info?.row?.nazwa || point.name || '(bez nazwy)';
-      marker.bindPopup(`<b>${escapeHtml(name)}</b>`);
+      // autoPan wyłączony: inaczej otwarcie popupu przerywa centrowanie mapy na punkcie.
+      marker.bindPopup(`<b>${escapeHtml(name)}</b>`, { autoPan: false });
       tdvMarkers.push(marker);
+      tdvMarkerById[it.id] = marker;
       coords.push(point.coords);
     });
-
-    // Noclegi (apartamenty/hotele) — zawsze widoczne jako punkt odniesienia, ale poza numeracją i trasą dnia.
-    const homeCoords = [];
-    (t.planPoints || t.points || []).forEach(p => {
-      if(p.categoryKey !== 'apartment' || !p.coords || p.coords.length !== 2) return;
-      const cat = typeof categoryByKey === 'function' ? categoryByKey(t, 'apartment') : null;
-      const color = (cat && cat.color) || '#2d8a5e';
-      const icon = typeof planMakeDot === 'function'
-        ? planMakeDot(color, 'apartment')
-        : L.divIcon({ html: `<div class="tdp-dot" style="background:${color};"></div>`, className: 'tdv-pin-wrap', iconSize: [18, 18], iconAnchor: [9, 9] });
-      const row = ((t.tables && t.tables.apartamenty) || []).find(r => r.id === p.id);
-      const name = (row && row.nazwa) || p.name || 'Nocleg';
-      L.marker(p.coords, { icon, zIndexOffset: 500 }).addTo(tdvMap).bindPopup(`<b>${escapeHtml(name)}</b><br>Nocleg`);
-      homeCoords.push(p.coords);
-    });
-    const viewCoords = coords.concat(homeCoords);
 
     root.querySelectorAll('.tdv-travel-auto').forEach(el => { el.textContent = ''; el.hidden = true; });
     root.querySelectorAll('.tdv-route-total').forEach(el => { el.textContent = ''; });
     if(coords.length >= 2){
-      RouteLines.draw(tdvMap, coords, { profile: routeProfileOf(t, day), onLegs: legs => {
+      const segs = coords.slice(0, -1).map((c, k) => ({ from: c, to: coords[k + 1], profile: legProfileOf(t, day, d.items[coordIdx[k]]) }));
+      RouteLines.drawSegments(tdvMap, segs, legs => {
         if(tdvMap !== map) return;
+        const ok = legs.filter(Boolean);
         root.querySelectorAll('.tdv-route-total').forEach(el => {
-          el.textContent = legs
-            ? `${RouteLines.fmtDistance(legs.reduce((s, l) => s + l.distance, 0))} · ${RouteLines.fmtDuration(legs.reduce((s, l) => s + l.duration, 0))}`
-            : 'Linia prosta — serwer tras nie odpowiada';
+          el.textContent = !ok.length
+            ? 'Linia prosta — serwer tras nie odpowiada'
+            : `${RouteLines.fmtDistance(ok.reduce((s, l) => s + l.distance, 0))} · ${RouteLines.fmtDuration(ok.reduce((s, l) => s + l.duration, 0))}${ok.length < legs.length ? ' (część odcinków: linia prosta)' : ''}`;
         });
-        if(!legs) return;
         // Szacunek odcinka trafia pod kafelek tylko, gdy oba punkty sąsiadują ze sobą w planie dnia.
         legs.forEach((leg, k) => {
+          if(!leg) return;
           const from = coordIdx[k], to = coordIdx[k + 1];
           if(to !== from + 1) return;
           const it = d.items[from];
@@ -618,12 +625,10 @@
           el.textContent = `≈ ${RouteLines.fmtDuration(leg.duration)} · ${RouteLines.fmtDistance(leg.distance)}`;
           el.hidden = false;
         });
-      } });
-    }
-    if(viewCoords.length >= 2){
-      tdvMap.fitBounds(L.latLngBounds(viewCoords), { padding: [30, 30] });
-    } else if(viewCoords.length === 1){
-      tdvMap.setView(viewCoords[0], 13);
+      });
+      tdvMap.fitBounds(L.latLngBounds(coords), { padding: [30, 30] });
+    } else if(coords.length === 1){
+      tdvMap.setView(coords[0], 13);
     } else {
       const c = ctx.center(t);
       if(c) tdvMap.setView(c, 10);
@@ -641,9 +646,11 @@
       <span class="tdv-travel-icon" aria-hidden="true">↓</span>
       <label class="tdv-travel-label">Dojazd:</label>
       <span class="tdv-travel-auto" data-from="${escapeAttr(it.id)}" title="Szacunek wg trasy na mapie" hidden></span>
-      <input type="text" class="tdv-travel-input tdv-travel-time" value="${escapeAttr(it.travelToNext || '')}" placeholder="np. 20 min" oninput="updateTripDayItemField(${day},'${it.id}','travelToNext',this.value)">
-      <input type="text" class="tdv-travel-input tdv-travel-mode" value="${escapeAttr(it.travelMode || '')}" placeholder="jak? np. pieszo, metro M1, auto" oninput="updateTripDayItemField(${day},'${it.id}','travelMode',this.value)">
+      <select class="tdv-travel-input tdv-travel-route" aria-label="Sposób dotarcia do następnego punktu" title="Sposób dotarcia (trasa na mapie)" onchange="setTripDayItemRouteMode(${day},'${it.id}',this.value)">
+        ${RouteLines.PROFILE_ORDER.map(k => `<option value="${k}"${legProfileOf(getTrip(), day, it) === k ? ' selected' : ''}>${RouteLines.PROFILES[k].label}</option>`).join('')}
+      </select>
     </div>`;
+    const hours = info.row.otwarcie;
 
     return `<div class="tdv-slot" data-item="${escapeAttr(it.id)}"><div class="tdv-item research-theme-${info.tableKey}">
       <button type="button" class="tdv-drag-handle" aria-label="Przeciągnij, aby zmienić kolejność (lub strzałki w górę/dół)" title="Przeciągnij, aby zmienić kolejność">⠿</button>
@@ -651,6 +658,7 @@
       <div class="tdv-item-body">
         <div class="tdv-item-name">${escapeHtml(name)}</div>
         <div class="tdv-item-meta">${escapeHtml(catLabel)}${loc ? ' · ' + escapeHtml(loc) : ''}${price ? ' · ' + Number(price).toLocaleString('pl-PL') + ' zł' : ''}${missingCoords ? ' · brak lokalizacji' : ''}</div>
+        ${hours ? `<div class="tdv-item-hours" title="Godziny otwarcia">${escapeHtml(hours)}</div>` : ''}
         <div class="tdv-item-times">
           ${it.timeMode === 'duration' ? `
             <label class="tdv-time-field tdv-duration-field">
@@ -730,10 +738,6 @@
         </section>
         <section class="tdv-map-section">
           <div class="tdv-route-bar">
-            <div class="tdv-route-switch" role="group" aria-label="Sposób poruszania się">${RouteLines.PROFILE_ORDER.map(k => {
-              const on = k === routeProfileOf(t, day);
-              return `<button type="button" class="tdv-route-chip${on ? ' active' : ''}" data-mode="${k}" aria-pressed="${on}" onclick="setTripDayRouteMode(${day},'${k}')"><span aria-hidden="true">${RouteLines.PROFILES[k].icon}</span> ${RouteLines.PROFILES[k].label}</button>`;
-            }).join('')}</div>
             <span class="tdv-route-total" aria-live="polite"></span>
           </div>
           <div class="tdv-map"></div>
@@ -746,7 +750,47 @@
     </div>`;
 
     bindDayDrag(container.querySelector('.tdv-items'), day);
+    bindTileFocus(container.querySelector('.tdv-items'), day);
     buildTripDayMap(day);
+  }
+
+  // Kliknięcie kafelka (poza polami i przyciskami) pokazuje punkt na mapie obok.
+  // Kliknięcie poza kafelkiem zdejmuje podświetlenie (listener dokumentu dodajemy raz).
+  // Odznaczenie kafelka zdejmuje też zaznaczenie punktu na mapie i wraca do widoku całego dnia.
+  function clearTileFocus(){
+    const active = document.querySelectorAll('.tdv-item-active');
+    if(!active.length) return;
+    active.forEach(el => el.classList.remove('tdv-item-active'));
+    if(!tdvMap) return;
+    tdvMap.closePopup();
+    const pts = tdvMarkers.map(m => m.getLatLng());
+    if(pts.length >= 2) tdvMap.flyToBounds(L.latLngBounds(pts), { padding: [30, 30], duration: 0.6 });
+    else if(pts.length === 1) tdvMap.flyTo(pts[0], 13, { duration: 0.6 });
+  }
+
+  document.addEventListener('click', e => {
+    if(e.target.closest('.tdv-item, .tdv-map')) return;
+    clearTileFocus();
+  });
+
+  function bindTileFocus(list, day){
+    if(!list) return;
+    list.addEventListener('click', e => {
+      if(e.target.closest('input, select, textarea, button, label')) return;
+      const slot = e.target.closest('.tdv-slot');
+      if(!slot || !tdvMap) return;
+      const marker = tdvMarkerById[slot.dataset.item];
+      if(!marker) return;
+      const tile = slot.querySelector('.tdv-item');
+      if(tile && tile.classList.contains('tdv-item-active')){ clearTileFocus(); return; }
+      list.querySelectorAll('.tdv-item-active').forEach(el => el.classList.remove('tdv-item-active'));
+      if(tile) tile.classList.add('tdv-item-active');
+      // flyTo robi łuk (oddala i przybliża) i trwa długo przy przeskoku między punktami —
+      // zwykłe, krótkie przesunięcie jest dużo szybsze.
+      tdvMap.stop();
+      tdvMap.setView(marker.getLatLng(), Math.max(tdvMap.getZoom(), 15), { animate: true, duration: 0.3, easeLinearity: 0.5 });
+      marker.openPopup();
+    });
   }
 
   // Przeciąganie kafelków za uchwyt ⠿ (mysz i dotyk). Kafelek „płynie" za kursorem, a pusty

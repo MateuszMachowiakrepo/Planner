@@ -55,9 +55,11 @@ html[data-theme="dark"] {
     --rsc-atrakcje:    #f0a246;
     --rsc-restauracje: #cda47a;
     --rsc-miejscowki:  #ad90da;
+    --rsc-quick:       #60a5fa;
     --tr-lot:      #5f9fd8;
     --tr-samochod: #2fa597;
     --tr-pociag:   #d98a3a;
+    --tr-inne:     #a78bfa;
 }
 
 /* ── Tło: nocne zdjęcie ───────────────────────────────────────────────── */

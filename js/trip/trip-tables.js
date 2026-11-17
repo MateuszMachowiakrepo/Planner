@@ -1,5 +1,9 @@
 (function(){
-  const TABLE_ORDER = ['koszty', 'loty', 'apartamenty', 'atrakcje', 'restauracje', 'miejscowki'];
+  const TABLE_ORDER_FULL = ['koszty', 'loty', 'apartamenty', 'atrakcje', 'restauracje', 'miejscowki'];
+  const TABLE_ORDER_QUICK = ['koszty_mix', 'miejscowki'];
+  const QUICK_TYPE_OPTIONS = ['koszt', 'apartament', 'transport', 'restauracja', 'atrakcja'];
+  const QUICK_TYPE_LABELS = { koszt: 'Koszt', apartament: 'Apartament', transport: 'Transport', restauracja: 'Restauracja', atrakcja: 'Atrakcja' };
+  const QUICK_TYPE_FROM_CAT = { attraction: 'atrakcja', restaurant: 'restauracja', apartment: 'apartament' };
 
   const TABLE_DEFS = {
     koszty: {
@@ -35,6 +39,7 @@
         { key: 'kategoria', label: 'Kategoria' },
         { key: 'miejsce', label: 'Miejsce' },
         { key: 'czas', label: 'Czas trwania' },
+        { key: 'otwarcie', label: 'Godziny otwarcia' },
         { key: 'cena', label: 'Cena', type: 'number', money: true }
       ],
       checkable: true, contributes: true
@@ -46,6 +51,7 @@
         { key: 'lokalizacja', label: 'Lokalizacja' },
         { key: 'kuchnia', label: 'Rodzaj kuchni' },
         { key: 'oceny', label: 'Oceny' },
+        { key: 'otwarcie', label: 'Godziny otwarcia' },
         { key: 'cena', label: 'Cena', type: 'number', money: true }
       ],
       checkable: true, contributes: true
@@ -56,11 +62,25 @@
         { key: 'nazwa', label: 'Nazwa' },
         { key: 'kategoria', label: 'Kategoria' },
         { key: 'lokalizacja', label: 'Lokalizacja' },
-        { key: 'walory', label: 'Walory' }
+        { key: 'walory', label: 'Walory' },
+        { key: 'otwarcie', label: 'Godziny otwarcia' }
       ],
       checkable: false, contributes: false
+    },
+    koszty_mix: {
+      title: 'Koszty', addLabel: 'Dodaj wiersz',
+      columns: [
+        { key: 'nazwa', label: 'Nazwa' },
+        { key: 'typ', label: 'Typ', type: 'select', options: QUICK_TYPE_OPTIONS, optionLabels: QUICK_TYPE_LABELS },
+        { key: 'ocena', label: 'Ocena' },
+        { key: 'cena', label: 'Cena', type: 'number', money: true }
+      ],
+      checkable: true, contributes: true
     }
   };
+
+  function isQuick(trip){ return !!(trip && trip.quick); }
+  function tableOrderFor(trip){ return isQuick(trip) ? TABLE_ORDER_QUICK : TABLE_ORDER_FULL; }
 
   function genId(){ return Date.now().toString(36) + Math.random().toString(36).slice(2, 8); }
 
@@ -80,7 +100,7 @@
     if(!trip) return;
     trip.tables = trip.tables || {};
     trip.tableNames = trip.tableNames || {};
-    TABLE_ORDER.forEach(k => {
+    tableOrderFor(trip).forEach(k => {
       if(!Array.isArray(trip.tables[k])) trip.tables[k] = [];
       if(!trip.tableNames[k]) trip.tableNames[k] = TABLE_DEFS[k].title;
     });
@@ -107,7 +127,7 @@
   function calcTripTotal(trip){
     ensureTables(trip);
     let total = 0;
-    TABLE_ORDER.forEach(k => {
+    tableOrderFor(trip).forEach(k => {
       const def = TABLE_DEFS[k];
       if(!def.contributes) return;
       total += sumForTable(trip.tables[k] || [], def);
@@ -117,7 +137,7 @@
   function calcTripPaid(trip){
     ensureTables(trip);
     let total = 0;
-    TABLE_ORDER.forEach(k => {
+    tableOrderFor(trip).forEach(k => {
       const def = TABLE_DEFS[k];
       if(!def.contributes) return;
       total += paidForTable(trip.tables[k] || [], def);
@@ -165,6 +185,7 @@
     def.columns.forEach(c => row[c.key] = '');
     if(def.grouped) row.groupId = row.id;
     if(key === 'loty') row.mode = Transport.modeKey(mode);
+    if(key === 'koszty_mix') row.typ = 'koszt';
     t.tables[key].push(row);
     const cat = TABLE_TO_CAT[key];
     if(cat){
@@ -191,9 +212,11 @@
     renderSummary();
   };
 
-  window.setTripTransportMode = function(groupId, mode){
+  window.setTripTransportMode = function(rowId, mode){
     const t = getTrip(); if(!t) return;
-    t.tables.loty.forEach(r => { if((r.groupId || r.id) === groupId) r.mode = Transport.modeKey(mode); });
+    const row = t.tables.loty.find(r => r.id === rowId);
+    if(!row) return;
+    row.mode = Transport.modeKey(mode);
     save();
     renderTables();
   };
@@ -271,13 +294,11 @@
       const groups = groupRows(rows);
       groups.forEach(group => {
         const groupId = group[0].groupId || group[0].id;
-        const mode = Transport.modeOf(group);
-        bodyHtml += Transport.groupHeadHtml(groupId, mode, colspan, 'setTripTransportMode');
         group.forEach((row, ri) => {
+          const mode = Transport.rowMode(row, group);
           bodyHtml += renderRow(row, key, def, mode);
           if(ri < group.length - 1) bodyHtml += Transport.connectorHtml(row, group[ri + 1], mode, colspan);
         });
-        bodyHtml += Transport.groupEndHtml(groupId, mode, colspan, 'addTripFlightLeg');
       });
     } else {
       bodyHtml = rows.map(row => renderRow(row, key, def)).join('');
@@ -286,7 +307,7 @@
     const addBtnHtml = def.mapOnly
       ? '<span class="research-add-hint">Wiersze pojawiają się po dodaniu pinu w zakładce Mapa.</span>'
       : key === 'loty'
-      ? Transport.MODE_ORDER.map(m => `<button type="button" class="research-add-btn tr-add-btn tr-mode-${m}" onclick="addTripTableRow('loty','${m}')">+ ${Transport.MODES[m].label}</button>`).join('')
+      ? `<button type="button" class="research-add-btn" onclick="addTripTableRow('loty','lot')">+ ${escapeHtml(def.addLabel)}</button>`
       : `<button type="button" class="research-add-btn" onclick="addTripTableRow('${key}')">+ ${escapeHtml(def.addLabel)}</button>`;
 
     return `<section class="research-table-section research-theme-${key}" data-table="${key}">
@@ -315,6 +336,7 @@
     const cells = def.columns.map(c => {
       const val = row[c.key] == null ? '' : row[c.key];
       const label = escapeAttr(mode ? Transport.colLabel(c, mode) : c.label);
+      if(mode && c.modeCell) return `<td data-label="${label}">${Transport.modeCellHtml(row, mode, `setTripTransportMode('${row.id}', this.value)`, `updateTripTableRow('${key}','${row.id}','${c.key}', this.value)`)}</td>`;
       if(mode && !Transport.showsCol(c, mode)) return `<td class="tr-cell-na" data-label="${label}" aria-hidden="true">—</td>`;
       const special = mode && Transport.specialInputHtml(c, val, mode, `updateTripTableRow('${key}','${row.id}','${c.key}', this.value)`);
       if(special) return `<td data-label="${label}">${special}</td>`;
@@ -326,13 +348,20 @@
           <option value="nie" ${optSel('nie')}>Nie</option>
         </select></td>`;
       }
+      if(c.type === 'select'){
+        const labels = c.optionLabels || {};
+        const opts = c.options.map(o => `<option value="${escapeAttr(o)}" ${o === val ? 'selected' : ''}>${escapeHtml(labels[o] || o)}</option>`).join('');
+        return `<td data-label="${label}"><select class="research-cell-select" onchange="updateTripTableRow('${key}','${row.id}','${c.key}', this.value)">${opts}</select></td>`;
+      }
       if(c.type === 'number'){
         return `<td data-label="${label}"><input class="research-cell-input" type="number" step="0.01" min="0" value="${escapeAttr(val)}" oninput="updateTripTableRow('${key}','${row.id}','${c.key}', this.value)"></td>`;
       }
       const ph = mode ? ` placeholder="${label}"` : '';
       return `<td data-label="${label}"><textarea class="research-cell-textarea" rows="1"${ph} oninput="updateTripTableRow('${key}','${row.id}','${c.key}', this.value); autosizeResearchCell(this)">${escapeHtml(val)}</textarea></td>`;
     }).join('');
-    return `<tr data-row="${row.id}"${mode ? ` class="tr-row tr-mode-${mode}"` : ''}>
+    const typAttr = (key === 'koszty_mix' && row.typ) ? ` data-typ="${escapeAttr(row.typ)}"` : '';
+    const trClass = mode ? ` class="tr-row tr-mode-${mode}"` : (key === 'koszty_mix' ? ` class="koszty-mix-row"` : '');
+    return `<tr data-row="${row.id}"${typAttr}${trClass}>
       ${checkable ? `<td class="research-check-col" data-label="Zapłacone"><input type="checkbox" class="research-check" ${row.checked ? 'checked' : ''} onchange="toggleTripTableCheck('${key}','${row.id}', this.checked)" title="Zaznacz jako opłacone"></td>` : ''}
       ${cells}
       <td class="research-del-col"><button type="button" class="research-row-del" title="Usuń wiersz" onclick="removeTripTableRow('${key}','${row.id}')">×</button></td>
@@ -344,7 +373,7 @@
     ensureTables(t);
     const cont = document.getElementById('trip-tables');
     if(!cont) return;
-    cont.innerHTML = TABLE_ORDER.map(k => renderTable(k, t)).join('');
+    cont.innerHTML = tableOrderFor(t).map(k => renderTable(k, t)).join('');
     if(typeof window.autosizeAllResearchCells === 'function'){
       requestAnimationFrame(window.autosizeAllResearchCells);
     } else {
@@ -363,7 +392,7 @@
     if(!el) return;
     const travelers = travelersOf(t);
     const showPerPerson = travelers > 1;
-    const rows = TABLE_ORDER
+    const rows = tableOrderFor(t)
       .filter(k => TABLE_DEFS[k].contributes)
       .map(k => {
         const def = TABLE_DEFS[k];
@@ -411,7 +440,7 @@
       </table>
       ${budgetHtml}
     `;
-    TABLE_ORDER.forEach(updateTableSum);
+    tableOrderFor(t).forEach(updateTableSum);
   }
 
   window.renderTripTables = function(){
@@ -438,6 +467,14 @@
   // Jedyne źródło prawdy o polach formularza "Nowy punkt" dla kategorii mapujących się na tabelę —
   // point-categories.js woła to, żeby formularz miał 1:1 te same pola co tabela (patrz TABLE_DEFS wyżej).
   window.getMapPointFormFields = function(categoryKey){
+    const t = getTrip();
+    if(isQuick(t)){
+      if(categoryKey === 'place') return TABLE_DEFS.miejscowki.columns.filter(c => c.key !== 'nazwa');
+      if(QUICK_TYPE_FROM_CAT[categoryKey]){
+        return TABLE_DEFS.koszty_mix.columns.filter(c => c.key !== 'nazwa' && c.key !== 'typ');
+      }
+      return null;
+    }
     const tableKey = CAT_TO_TABLE[categoryKey];
     if(!tableKey) return null;
     return TABLE_DEFS[tableKey].columns.filter(c => c.key !== 'nazwa');
@@ -445,14 +482,14 @@
 
   function findRowByPointId(trip, pointId){
     ensureTables(trip);
-    for(const key of TABLE_ORDER){
+    for(const key of tableOrderFor(trip)){
       const row = (trip.tables[key] || []).find(r => r.id === pointId);
       if(row) return { key, row };
     }
     return null;
   }
 
-  window.syncTripPointNameFromRow = function(rowId, newName){
+  window.syncTripPointNameFromRow =function(rowId, newName){
     const t = getTrip(); if(!t) return;
     const pts = t.planPoints || [];
     const p = pts.find(pp => pp.id === rowId);
@@ -491,7 +528,13 @@
   }
 
   function addRowForPoint(trip, point){
-    const tableKey = CAT_TO_TABLE[point.categoryKey];
+    let tableKey;
+    if(isQuick(trip)){
+      if(point.categoryKey === 'place') tableKey = 'miejscowki';
+      else if(QUICK_TYPE_FROM_CAT[point.categoryKey]) tableKey = 'koszty_mix';
+    } else {
+      tableKey = CAT_TO_TABLE[point.categoryKey];
+    }
     if(!tableKey) return;
     ensureTables(trip);
     const def = TABLE_DEFS[tableKey];
@@ -499,14 +542,13 @@
     const row = { id: point.id, checked: false };
     def.columns.forEach(c => row[c.key] = '');
     if('nazwa' in row) row.nazwa = point.name || '';
+    if(tableKey === 'koszty_mix') row.typ = QUICK_TYPE_FROM_CAT[point.categoryKey] || 'koszt';
     copyPointColsIntoRow(row, def, point);
     trip.tables[tableKey].push(row);
   }
 
-  // handlePlanMapClick is redefined in maps-routing.js to handle both string mode
-  // (legacy: city / new-point-modal) and object mode { categoryKey, rowId } for
-  // linking an existing table row's point coords. After the link, we refresh
-  // trip tables so any name/coords change is reflected.
+  // Po kliknięciu w mapę standardowy flow (maps-routing.js) podlinkowuje współrzędne
+  // do wybranego wiersza tabeli — tak samo w zwykłej i szybkiej podróży.
   const _origHandlePlanMapClick = window.handlePlanMapClick;
   window.handlePlanMapClick = function(latlng, mode){
     if(typeof _origHandlePlanMapClick === 'function') _origHandlePlanMapClick(latlng, mode);
